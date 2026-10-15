@@ -1,11 +1,14 @@
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import {
   Download,
   FileImage,
   FilePlus,
   FileText,
+  FolderOpen,
+  FolderPlus,
   Image,
   Save,
+  SaveAll,
   SunMoon,
   type LucideIcon,
 } from "lucide-react";
@@ -22,15 +25,19 @@ type DragState = {
 
 type ToolbarAction = {
   label: string;
-  type: "import" | "link-image" | "link-doc" | "text" | "theme" | "save" | "export";
+  type: "new" | "open" | "save" | "save-as" | "import" | "link-image" | "link-doc" | "text" | "theme" | "export";
   disabled?: boolean;
+  dividerAfter?: boolean;
 };
 
 type FloatingToolbarProps = {
-  onImport: (files: FileList) => void;
+  onNewBoard: () => void;
+  onOpenBoard: () => void;
+  onSave: () => void;
+  onSaveAs: () => void;
+  onImport: () => void;
   onAddText: () => void;
   onToggleTheme: () => void;
-  onSave: () => void;
   position?: Position;
   onPositionChange?: (next: Position) => void;
 };
@@ -40,12 +47,15 @@ const clamp = (value: number, min: number, max: number) =>
 
 function ToolbarIcon({ type }: { type: ToolbarAction["type"] }) {
   const iconMap: Record<ToolbarAction["type"], LucideIcon> = {
+    new: FolderPlus,
+    open: FolderOpen,
+    save: Save,
+    "save-as": SaveAll,
     import: Image,
     "link-image": FileImage,
     "link-doc": FilePlus,
     text: FileText,
     theme: SunMoon,
-    save: Save,
     export: Download,
   };
 
@@ -55,16 +65,18 @@ function ToolbarIcon({ type }: { type: ToolbarAction["type"] }) {
 }
 
 export default function FloatingToolbar({
+  onNewBoard,
+  onOpenBoard,
+  onSave,
+  onSaveAs,
   onImport,
   onAddText,
   onToggleTheme,
-  onSave,
   position,
   onPositionChange,
 }: FloatingToolbarProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [internalPosition, setInternalPosition] = useState<Position>({ x: 24, y: 24 });
   const resolvedPosition = position ?? internalPosition;
 
@@ -78,12 +90,15 @@ export default function FloatingToolbar({
   };
 
   const toolbarItems: ToolbarAction[] = [
+    { label: "New board (Ctrl+N)", type: "new" },
+    { label: "Open board (Ctrl+O)", type: "open" },
+    { label: "Save board (Ctrl+S)", type: "save" },
+    { label: "Save board as (Ctrl+Shift+S)", type: "save-as", dividerAfter: true },
     { label: "Import image", type: "import" },
     { label: "Link image", type: "link-image", disabled: true },
     { label: "Link document", type: "link-doc", disabled: true },
     { label: "Add text box", type: "text" },
     { label: "Theme", type: "theme" },
-    { label: "Save board", type: "save" },
     { label: "Export board", type: "export", disabled: true },
   ];
 
@@ -153,47 +168,21 @@ export default function FloatingToolbar({
       return;
     }
 
-    if (item.type === "import") {
-      fileInputRef.current?.click();
-      return;
-    }
+    const actions: Partial<Record<ToolbarAction["type"], () => void>> = {
+      new: onNewBoard,
+      open: onOpenBoard,
+      save: onSave,
+      "save-as": onSaveAs,
+      import: onImport,
+      text: onAddText,
+      theme: onToggleTheme,
+    };
 
-    if (item.type === "text") {
-      onAddText();
-      return;
-    }
-
-    if (item.type === "theme") {
-      onToggleTheme();
-      return;
-    }
-
-    if (item.type === "save") {
-      onSave();
-    }
-  };
-
-  const handleFileSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-
-    if (files && files.length > 0) {
-      onImport(files);
-    }
-
-    event.target.value = "";
+    actions[item.type]?.();
   };
 
   return (
     <div className="floating-toolbar-shell" style={{ left: resolvedPosition.x, top: resolvedPosition.y }}>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden-file-input"
-        onChange={handleFileSelection}
-      />
-
       <div
         ref={panelRef}
         className="floating-toolbar"
@@ -213,17 +202,19 @@ export default function FloatingToolbar({
         </div>
 
         {toolbarItems.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            className={`toolbar-button${item.disabled ? " is-disabled" : ""}`}
-            aria-label={item.label}
-            title={item.label}
-            disabled={item.disabled}
-            onClick={() => handleButtonClick(item)}
-          >
-            <ToolbarIcon type={item.type} />
-          </button>
+          <Fragment key={item.type}>
+            <button
+              type="button"
+              className={`toolbar-button${item.disabled ? " is-disabled" : ""}`}
+              aria-label={item.label}
+              title={item.label}
+              disabled={item.disabled}
+              onClick={() => handleButtonClick(item)}
+            >
+              <ToolbarIcon type={item.type} />
+            </button>
+            {item.dividerAfter && <span className="toolbar-divider" aria-hidden="true" />}
+          </Fragment>
         ))}
       </div>
     </div>

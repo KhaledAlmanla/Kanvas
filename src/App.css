@@ -206,8 +206,10 @@ video {
   stroke-linejoin: round;
 }
 
-.hidden-file-input {
-  display: none;
+.toolbar-divider {
+  width: 1px;
+  height: 1.8rem;
+  background: var(--panel-border);
 }
 
 .board-image {

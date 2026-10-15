@@ -1,7 +1,27 @@
 import { useEffect, useRef, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import FloatingToolbar from "./C_floatingToolbar";
 import C_Images, { type BoardImageItem } from "./C_Images";
 import C_textBoxes, { type BoardTextBoxItem } from "./C_textBoxes";
+import {
+  askAboutUnsavedChanges,
+  getBoardName,
+  getBoardSnapshot,
+  getFileName,
+  getLastBoardPath,
+  pickBoardSaveLocation,
+  pickBoardToOpen,
+  pickImagesToImport,
+  readBoardFile,
+  setLastBoardPath,
+  showError,
+  writeBoardFile,
+  type BoardState,
+  type Theme,
+} from "../lib/boardFile";
+
+const UNTITLED_BOARD_NAME = "Untitled board";
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -15,7 +35,7 @@ type SelectionBox = {
 
 export default function C_canvas() {
   const canvasRef = useRef<HTMLDivElement | null>(null);
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<Theme>("dark");
   const [images, setImages] = useState<BoardImageItem[]>([]);
   const [textBoxes, setTextBoxes] = useState<BoardTextBoxItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -26,6 +46,14 @@ export default function C_canvas() {
   const panRef = useRef<{ startX: number; startY: number; startOffsetX: number; startOffsetY: number } | null>(null);
   const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
   const selectionDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [boardPath, setBoardPath] = useState<string | null>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState(() =>
+    getBoardSnapshot({ theme: "dark", images: [], textBoxes: [] }),
+  );
+  const isFileActionRunningRef = useRef(false);
+
+  const boardName = boardPath ? getBoardName(boardPath) : UNTITLED_BOARD_NAME;
+  const isDirty = getBoardSnapshot({ theme, images, textBoxes }) !== savedSnapshot;
 
   const MIN_ZOOM = 0.5;
   const MAX_ZOOM = 5;
@@ -59,19 +87,20 @@ export default function C_canvas() {
     });
   };
 
-  const handleImport = (files: FileList) => {
-    const imageFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
+  const handleImport = async () => {
+    const imagePaths = await pickImagesToImport();
 
-    if (imageFiles.length === 0) {
+    if (imagePaths.length === 0) {
       return;
     }
 
-    const nextImages = imageFiles.map((file, index) => {
-      const url = URL.createObjectURL(file);
+    const nextImages = imagePaths.map((path, index) => {
       const naturalSize = new Promise<{ width: number; height: number }>((resolve) => {
         const img = new Image();
         img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-        img.src = url;
+        // Unreadable files still get a square placeholder instead of being dropped silently.
+        img.onerror = () => resolve({ width: 1, height: 1 });
+        img.src = convertFileSrc(path);
       });
 
       return naturalSize.then((size) => {
@@ -82,8 +111,8 @@ export default function C_canvas() {
 
         return {
           id: Date.now() + index + Math.random(),
-          src: url,
-          name: file.name,
+          path,
+          name: getFileName(path),
           x: 64 + index * 28,
           y: 64 + index * 24,
           width,
@@ -156,58 +185,180 @@ export default function C_canvas() {
     return matches;
   };
 
-  const saveBoard = () => {
-    const payload = {
-      theme,
-      images,
-      textBoxes,
-      viewOffset,
-      zoom,
-      toolbarPosition,
-      selectedIds,
-    };
-
-    localStorage.setItem("moodboard-board-v1", JSON.stringify(payload));
+  const applyBoard = (board: BoardState, nextBoardPath: string | null) => {
+    setTheme(board.theme);
+    setImages(board.images);
+    setTextBoxes(board.textBoxes);
+    setSelectedIds([]);
+    setSelectionBox(null);
+    setViewOffset({ x: board.view.x || 0, y: board.view.y || 0 });
+    setZoom(Number.isFinite(board.view.zoom) ? clamp(board.view.zoom, MIN_ZOOM, MAX_ZOOM) : 1);
+    setBoardPath(nextBoardPath);
+    setSavedSnapshot(getBoardSnapshot(board));
+    setLastBoardPath(nextBoardPath);
   };
 
-  useEffect(() => {
+  const writeBoardTo = async (targetPath: string) => {
+    const board: BoardState = { theme, images, textBoxes, view: { ...viewOffset, zoom } };
+
     try {
-      const saved = localStorage.getItem("moodboard-board-v1");
-      if (!saved) {
+      const savedImages = await writeBoardFile(targetPath, board);
+      const savedPathById = new Map(savedImages.map((image) => [image.id, image.path]));
+
+      // Only swap in the copied image paths, so edits made while saving are kept (and stay unsaved).
+      setImages((current) =>
+        current.map((image) => {
+          const savedPath = savedPathById.get(image.id);
+          return savedPath ? { ...image, path: savedPath } : image;
+        }),
+      );
+      setBoardPath(targetPath);
+      setSavedSnapshot(getBoardSnapshot({ ...board, images: savedImages }));
+      setLastBoardPath(targetPath);
+      return true;
+    } catch (error) {
+      await showError("Could not save the board", error);
+      return false;
+    }
+  };
+
+  const saveBoardAs = async () => {
+    const targetPath = await pickBoardSaveLocation(boardName);
+    return targetPath ? writeBoardTo(targetPath) : false;
+  };
+
+  const saveBoard = async () => (boardPath ? writeBoardTo(boardPath) : saveBoardAs());
+
+  /** Returns true when the current board may be replaced or closed. */
+  const resolveUnsavedChanges = async () => {
+    if (!isDirty) {
+      return true;
+    }
+
+    const choice = await askAboutUnsavedChanges(boardName);
+    if (choice === "save") {
+      return saveBoard();
+    }
+
+    return choice === "discard";
+  };
+
+  const newBoard = async () => {
+    if (await resolveUnsavedChanges()) {
+      applyBoard({ theme, view: { x: 0, y: 0, zoom: 1 }, images: [], textBoxes: [] }, null);
+    }
+  };
+
+  const openBoard = async () => {
+    const targetPath = await pickBoardToOpen();
+    if (!targetPath || !(await resolveUnsavedChanges())) {
+      return;
+    }
+
+    try {
+      applyBoard(await readBoardFile(targetPath), targetPath);
+    } catch (error) {
+      await showError("Could not open the board", error);
+    }
+  };
+
+  // Keeps dialogs from stacking up, e.g. when Ctrl+S is pressed while a save is still running.
+  const runFileAction = async (action: () => Promise<unknown>) => {
+    if (isFileActionRunningRef.current) {
+      return;
+    }
+
+    isFileActionRunningRef.current = true;
+    try {
+      await action();
+    } catch (error) {
+      await showError("Something went wrong", error);
+    } finally {
+      isFileActionRunningRef.current = false;
+    }
+  };
+
+  // Window-level listeners are registered once, so they read the latest actions through this ref.
+  const fileActionsRef = useRef({ saveBoard, saveBoardAs, newBoard, openBoard, resolveUnsavedChanges, runFileAction });
+  useEffect(() => {
+    fileActionsRef.current = { saveBoard, saveBoardAs, newBoard, openBoard, resolveUnsavedChanges, runFileAction };
+  });
+
+  useEffect(() => {
+    const lastBoardPath = getLastBoardPath();
+    if (!lastBoardPath) {
+      return;
+    }
+
+    let isCancelled = false;
+    readBoardFile(lastBoardPath)
+      .then((board) => {
+        if (!isCancelled) {
+          applyBoard(board, lastBoardPath);
+        }
+      })
+      .catch(() => {
+        // The board was moved or deleted since the last session; start with an empty one.
+        if (!isCancelled) {
+          setLastBoardPath(null);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) {
         return;
       }
 
-      const parsed = JSON.parse(saved) as {
-        theme?: "dark" | "light";
-        images?: BoardImageItem[];
-        textBoxes?: BoardTextBoxItem[];
-        viewOffset?: { x: number; y: number };
-        zoom?: number;
-        toolbarPosition?: { x: number; y: number };
+      const { saveBoard, saveBoardAs, newBoard, openBoard, runFileAction } = fileActionsRef.current;
+      const shortcuts: Record<string, (() => Promise<unknown>) | undefined> = {
+        s: event.shiftKey ? saveBoardAs : saveBoard,
+        o: openBoard,
+        n: newBoard,
       };
+      const action = shortcuts[event.key.toLowerCase()];
 
-      if (parsed.theme) {
-        setTheme(parsed.theme);
+      if (action) {
+        event.preventDefault();
+        void runFileAction(action);
       }
-      if (Array.isArray(parsed.images)) {
-        setImages(parsed.images);
-      }
-      if (Array.isArray(parsed.textBoxes)) {
-        setTextBoxes(parsed.textBoxes);
-      }
-      if (parsed.viewOffset) {
-        setViewOffset(parsed.viewOffset);
-      }
-      if (typeof parsed.zoom === "number") {
-        setZoom(clamp(parsed.zoom, MIN_ZOOM, MAX_ZOOM));
-      }
-      if (parsed.toolbarPosition) {
-        setToolbarPosition(parsed.toolbarPosition);
-      }
-    } catch {
-      // Ignore malformed saved content.
-    }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    const unlistenPromise = getCurrentWindow().onCloseRequested(async (event) => {
+      const { resolveUnsavedChanges, runFileAction } = fileActionsRef.current;
+      let canClose = false;
+
+      await runFileAction(async () => {
+        canClose = await resolveUnsavedChanges();
+      });
+
+      if (!canClose) {
+        event.preventDefault();
+      }
+    });
+
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, []);
+
+  useEffect(() => {
+    getCurrentWindow()
+      .setTitle(`${isDirty ? "• " : ""}${boardName} — Kanvas`)
+      .catch(() => {
+        // The title is cosmetic; ignore failures.
+      });
+  }, [boardName, isDirty]);
 
   const handleCanvasPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
@@ -389,10 +540,15 @@ export default function C_canvas() {
       <FloatingToolbar
         position={toolbarPosition}
         onPositionChange={setToolbarPosition}
-        onImport={handleImport}
+        onImport={() => {
+          handleImport().catch((error) => showError("Could not import images", error));
+        }}
         onAddText={handleAddText}
         onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-        onSave={saveBoard}
+        onNewBoard={() => void runFileAction(newBoard)}
+        onOpenBoard={() => void runFileAction(openBoard)}
+        onSave={() => void runFileAction(saveBoard)}
+        onSaveAs={() => void runFileAction(saveBoardAs)}
       />
     </div>
   );

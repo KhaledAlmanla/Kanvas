@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { Crop, Trash } from "lucide-react";
 
 export type BoardImageItem = {
   id: number;
-  src: string;
+  /** Absolute path of the image file on disk. */
+  path: string;
   name: string;
   x: number;
   y: number;
@@ -162,7 +164,7 @@ export default function C_Images({ item, isSelected = false, onSelect, onUpdate,
     >
       <div className="board-image-frame">
         <img
-          src={item.src}
+          src={convertFileSrc(item.path)}
           alt={item.name}
           className="board-image-element"
           draggable={false}
