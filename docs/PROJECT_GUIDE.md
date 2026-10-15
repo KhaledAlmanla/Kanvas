@@ -52,27 +52,17 @@ The floating toolbar in [src/components/C_floatingToolbar.tsx](src/components/C_
 
 This is one of the most important UI elements in the app and it was designed to feel lightweight and floating.
 
-### 4. Image board items
+### 4. Board items
 
-The image item component in [src/components/C_Images.tsx](src/components/C_Images.tsx) adds drag and resize behavior to imported image objects.
-
-Features include:
-
-- pointer-based drag movement
-- resize handle
-- hover action bar
-- delete option
-
-### 5. Text boxes
-
-The text box component in [src/components/C_textBoxes.tsx](src/components/C_textBoxes.tsx) allows creative notes and captions to be added directly on the board.
+The board item component in [src/components/C_boardItem.tsx](src/components/C_boardItem.tsx) renders both imported images and text boxes. It is memoized, so dragging one item only re-renders that item.
 
 Features include:
 
-- reposition drag
-- resize drag
-- click-to-edit mode
-- delete control
+- resize handles on selected items
+- hover option bar beside the item, with delete (and edit for text boxes)
+- double-click a text box to edit its text
+
+Dragging, resizing, panning and box selection are handled once in the canvas, not per item. Pointer movement is divided by the zoom level, so items follow the cursor at any zoom, and dragging a selected item moves the whole selection.
 
 ## Styling approach
 

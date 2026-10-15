@@ -33,8 +33,10 @@ The UI is custom code in the frontend, not drawn from a Tauri widget library. Ta
 - [src/App.tsx](src/App.tsx) — app entry point, renders the main canvas
 - [src/components/C_canvas.tsx](src/components/C_canvas.tsx) — holds board state and renders images/text boxes
 - [src/components/C_floatingToolbar.tsx](src/components/C_floatingToolbar.tsx) — draggable floating action toolbar
-- [src/components/C_Images.tsx](src/components/C_Images.tsx) — image item behavior, dragging, resizing, delete actions
-- [src/components/C_textBoxes.tsx](src/components/C_textBoxes.tsx) — editable text box behavior
+- [src/components/C_boardItem.tsx](src/components/C_boardItem.tsx) — renders one image or text box: frame, resize handles, option bar, text editing
+- [src/lib/boardItems.ts](src/lib/boardItems.ts) — item types and geometry helpers (resize, intersection)
+- [src/lib/boardFile.ts](src/lib/boardFile.ts) — reading and writing `.kanvas` board files, file dialogs
+- [src-tauri/src/lib.rs](src-tauri/src/lib.rs) — Rust commands for board folders, file writes and image copies
 - [src/App.css](src/App.css) — all styling for layout, toolbar, board items, and interactions
 
 ## Component overview
@@ -88,22 +90,28 @@ Text boxes support:
 
 ## Data model
 
-The board items are simple TypeScript objects.
+All board content lives in a single `items` list. Its order is the stacking order: the last item is drawn on top.
 
-### Image item
+Every item has:
 
-- id: unique numeric ID
-- src: image source URL
-- name: file name
+- id: unique string ID
+- type: `"image"` or `"text"`
 - x, y: position on the board
 - width, height: item size
 
-### Text box item
+Images also have `path` (absolute path on disk) and `name`. Text boxes also have `text`.
 
-- id: unique numeric ID
-- x, y: position on the board
-- width, height: box size
-- text: text content
+## Board files
+
+Each board is its own folder:
+
+```
+MyBoard/
+├── MyBoard.kanvas   JSON: theme, view (pan and zoom), items
+└── Images/          copies of every imported image
+```
+
+Saving copies imported images into `Images/`, and the `.kanvas` file stores their paths relative to the board folder, so the folder can be moved or shared. Boards saved in the older format (version 1, separate image and text lists) still open and are upgraded on the next save.
 
 ## How the app works
 
@@ -150,7 +158,6 @@ This app is a solid foundation for adding:
 - drag-and-drop reordering
 - richer text formatting
 - undo/redo history
-- saving/loading boards
 - AI-assisted moodboard generation
 
 ## Summary

@@ -1,12 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { dirname, join } from "@tauri-apps/api/path";
 import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
-import type { BoardImageItem } from "../components/C_Images";
-import type { BoardTextBoxItem } from "../components/C_textBoxes";
+import type { BoardImageItem, BoardItem, BoardTextItem, Rect } from "./boardItems";
 
 export const BOARD_EXTENSION = "kanvas";
-const BOARD_FILE_VERSION = 1;
-const LAST_BOARD_KEY = "kanvas-last-board";
+const BOARD_FILE_VERSION = 2;
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"];
 
 export type Theme = "dark" | "light";
@@ -20,21 +18,30 @@ export type BoardView = {
 export type BoardState = {
   theme: Theme;
   view: BoardView;
-  images: BoardImageItem[];
-  textBoxes: BoardTextBoxItem[];
+  items: BoardItem[];
 };
 
 // On disk, images point at a file relative to the board folder instead of an absolute path,
 // so the whole board folder can be moved or shared.
 type BoardFileImage = Omit<BoardImageItem, "path"> & { file: string };
+type BoardFileItem = BoardFileImage | BoardTextItem;
 
 type BoardFile = {
   app: "kanvas";
   version: number;
   theme: Theme;
   view: BoardView;
-  images: BoardFileImage[];
-  textBoxes: BoardTextBoxItem[];
+  items: BoardFileItem[];
+};
+
+/** Version 1 kept images and text boxes in separate lists, with numeric ids. */
+type BoardFileV1 = {
+  app: "kanvas";
+  version: 1;
+  theme: Theme;
+  view: BoardView;
+  images: (Rect & { id: number; name: string; file: string })[];
+  textBoxes: (Rect & { id: number; text: string })[];
 };
 
 type StoredImageFile = {
@@ -55,46 +62,32 @@ export const getBoardName = (boardPath: string) =>
 export const getFileName = (filePath: string) => filePath.split(/[\\/]/).pop() ?? filePath;
 
 /** Serializes the parts of a board that count as unsaved changes (panning and zooming don't). */
-export const getBoardSnapshot = ({ theme, images, textBoxes }: Pick<BoardState, "theme" | "images" | "textBoxes">) =>
-  JSON.stringify({ theme, images, textBoxes });
+export const getBoardSnapshot = ({ theme, items }: Pick<BoardState, "theme" | "items">) =>
+  JSON.stringify({ theme, items });
 
-export const getLastBoardPath = () => {
-  try {
-    return localStorage.getItem(LAST_BOARD_KEY);
-  } catch {
-    return null;
-  }
-};
-
-export const setLastBoardPath = (boardPath: string | null) => {
-  try {
-    if (boardPath) {
-      localStorage.setItem(LAST_BOARD_KEY, boardPath);
-    } else {
-      localStorage.removeItem(LAST_BOARD_KEY);
-    }
-  } catch {
-    // Remembering the last board is only a convenience.
-  }
-};
-
-/** Copies every image into the board's Images folder, then writes the board file. Returns the images with their new paths. */
-export async function writeBoardFile(boardPath: string, board: BoardState): Promise<BoardImageItem[]> {
+/** Copies every image into the board's Images folder, then writes the board file. Returns the items with their new image paths. */
+export async function writeBoardFile(boardPath: string, board: BoardState): Promise<BoardItem[]> {
   const storedBySource = new Map<string, StoredImageFile>();
-  const fileImages: BoardFileImage[] = [];
-  const savedImages: BoardImageItem[] = [];
+  const fileItems: BoardFileItem[] = [];
+  const savedItems: BoardItem[] = [];
 
   // Sequential on purpose: parallel copies of files with the same name could pick the same target name.
-  for (const image of board.images) {
-    let stored = storedBySource.get(image.path);
-    if (!stored) {
-      stored = await invoke<StoredImageFile>("copy_image_to_board", { boardPath, sourcePath: image.path });
-      storedBySource.set(image.path, stored);
+  for (const item of board.items) {
+    if (item.type !== "image") {
+      fileItems.push(item);
+      savedItems.push(item);
+      continue;
     }
 
-    const { path: _path, ...rest } = image;
-    fileImages.push({ ...rest, file: stored.file });
-    savedImages.push({ ...image, path: stored.path });
+    let stored = storedBySource.get(item.path);
+    if (!stored) {
+      stored = await invoke<StoredImageFile>("copy_image_to_board", { boardPath, sourcePath: item.path });
+      storedBySource.set(item.path, stored);
+    }
+
+    const { path: _path, ...rest } = item;
+    fileItems.push({ ...rest, file: stored.file });
+    savedItems.push({ ...item, path: stored.path });
   }
 
   const contents: BoardFile = {
@@ -102,19 +95,23 @@ export async function writeBoardFile(boardPath: string, board: BoardState): Prom
     version: BOARD_FILE_VERSION,
     theme: board.theme,
     view: board.view,
-    images: fileImages,
-    textBoxes: board.textBoxes,
+    items: fileItems,
   };
 
   await invoke("write_board", { boardPath, contents: JSON.stringify(contents, null, 2) });
-  return savedImages;
+  return savedItems;
 }
+
+const upgradeV1Items = (file: BoardFileV1): BoardFileItem[] => [
+  ...file.images.map(({ id, ...rest }) => ({ ...rest, id: String(id), type: "image" as const })),
+  ...file.textBoxes.map(({ id, ...rest }) => ({ ...rest, id: String(id), type: "text" as const })),
+];
 
 export async function readBoardFile(boardPath: string): Promise<BoardState> {
   const contents = await invoke<string>("read_board", { boardPath });
-  const parsed = JSON.parse(contents) as Partial<BoardFile>;
+  const parsed = JSON.parse(contents) as Partial<BoardFile> | BoardFileV1;
 
-  if (parsed.app !== "kanvas" || !Array.isArray(parsed.images) || !Array.isArray(parsed.textBoxes)) {
+  if (parsed.app !== "kanvas") {
     throw new Error("This file is not a Kanvas board.");
   }
 
@@ -122,19 +119,27 @@ export async function readBoardFile(boardPath: string): Promise<BoardState> {
     throw new Error("This board was saved by a newer version of Kanvas.");
   }
 
+  const fileItems = parsed.version === 1 ? upgradeV1Items(parsed as BoardFileV1) : (parsed as Partial<BoardFile>).items;
+  if (!Array.isArray(fileItems)) {
+    throw new Error("This board file is damaged: it has no item list.");
+  }
+
   const boardDir = await dirname(boardPath);
-  const images = await Promise.all(
-    parsed.images.map(async ({ file, ...rest }) => ({
-      ...rest,
-      path: await join(boardDir, ...file.split("/")),
-    })),
+  const items = await Promise.all(
+    fileItems.map(async (item): Promise<BoardItem> => {
+      if (item.type !== "image") {
+        return item;
+      }
+
+      const { file, ...rest } = item;
+      return { ...rest, path: await join(boardDir, ...file.split("/")) };
+    }),
   );
 
   return {
     theme: parsed.theme === "light" ? "light" : "dark",
     view: parsed.view ?? { x: 0, y: 0, zoom: 1 },
-    images,
-    textBoxes: parsed.textBoxes,
+    items,
   };
 }
 

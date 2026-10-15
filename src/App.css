@@ -309,10 +309,22 @@ video {
 .resize-handle--se { bottom: -0.38rem; right: -0.38rem; cursor: nwse-resize; }
 .resize-handle--sw { bottom: -0.38rem; left: -0.38rem; cursor: nesw-resize; }
 
-.board-item-option-bar {
+/* Starts right at the item's edge, so the pointer can reach the buttons without leaving the hover area. */
+.board-item-options {
   position: absolute;
   top: 0.5rem;
-  left: calc(100% + 0.55rem);
+  left: 100%;
+  padding-left: 0.55rem;
+  z-index: 10;
+  visibility: hidden;
+}
+
+.board-item:hover .board-item-options,
+.board-item.is-selected .board-item-options {
+  visibility: visible;
+}
+
+.board-item-option-bar {
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -321,7 +333,6 @@ video {
   background: rgba(15, 23, 42, 0.82);
   border: 1px solid rgba(148, 163, 184, 0.28);
   box-shadow: 0 12px 20px rgba(15, 23, 42, 0.3);
-  z-index: 10;
 }
 
 .option-button {
@@ -343,6 +354,11 @@ video {
 
 .option-button.crop {
   background: rgba(96, 165, 250, 0.9);
+}
+
+.option-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .board-text-content {
