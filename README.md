@@ -36,6 +36,8 @@ The UI is custom code in the frontend, not drawn from a Tauri widget library. Ta
 - [src/components/C_boardItem.tsx](src/components/C_boardItem.tsx) — renders one image or text box: frame, resize handles, option bar, text editing
 - [src/lib/boardItems.ts](src/lib/boardItems.ts) — item types and geometry helpers (resize, intersection)
 - [src/lib/boardFile.ts](src/lib/boardFile.ts) — reading and writing `.kanvas` board files, file dialogs
+- [src/components/C_settingsDialog.tsx](src/components/C_settingsDialog.tsx) — the settings dialog (gear button or Ctrl+,)
+- [src/lib/settings.ts](src/lib/settings.ts), [src/lib/useSettings.ts](src/lib/useSettings.ts) — app settings: types, defaults, loading and auto-saving
 - [src-tauri/src/lib.rs](src-tauri/src/lib.rs) — Rust commands for board folders, file writes and image copies
 - [src/App.css](src/App.css) — all styling for layout, toolbar, board items, and interactions
 
@@ -107,11 +109,15 @@ Each board is its own folder:
 
 ```
 MyBoard/
-├── MyBoard.kanvas   JSON: theme, view (pan and zoom), items
+├── MyBoard.kanvas   JSON: board settings (theme override, background), view (pan and zoom), items
 └── Images/          copies of every imported image
 ```
 
-Saving copies imported images into `Images/`, and the `.kanvas` file stores their paths relative to the board folder, so the folder can be moved or shared. Boards saved in the older format (version 1, separate image and text lists) still open and are upgraded on the next save.
+Images are copied into `Images/` when imported into a saved board, or on the first save of a new board, and the `.kanvas` file stores their paths relative to the board folder, so the folder can be moved or shared. Boards saved in older formats (versions 1 and 2) still open and are upgraded on the next save; their stored theme is dropped so they follow the app theme.
+
+## App settings
+
+App-wide settings (theme, colour schemes, zoom limits, text defaults, recent boards, …) are stored as `settings.json` in the app's config folder, e.g. `~/.config/com.krr.kanvas/` on Linux. Missing or invalid values fall back to the defaults in [src/lib/settings.ts](src/lib/settings.ts).
 
 ## How the app works
 

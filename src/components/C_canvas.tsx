@@ -3,8 +3,11 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import FloatingToolbar from "./C_floatingToolbar";
 import C_boardItem from "./C_boardItem";
+import C_settingsDialog from "./C_settingsDialog";
 import {
+  DEFAULT_BOARD_SETTINGS,
   askAboutUnsavedChanges,
+  copyImageIntoBoard,
   getBoardName,
   getBoardSnapshot,
   getFileName,
@@ -14,9 +17,9 @@ import {
   readBoardFile,
   showError,
   writeBoardFile,
+  type BoardSettings,
   type BoardState,
   type BoardView,
-  type Theme,
 } from "../lib/boardFile";
 import {
   MIN_ITEM_SIZE,
@@ -28,16 +31,23 @@ import {
   type Rect,
   type ResizeMode,
 } from "../lib/boardItems";
+import { getCanvasVariables, updateRecentBoards, type Settings, type ThemeMode } from "../lib/settings";
+import { useSettings, useSystemTheme } from "../lib/useSettings";
 
 const UNTITLED_BOARD_NAME = "Untitled board";
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 5;
 const DEFAULT_VIEW: BoardView = { x: 0, y: 0, zoom: 1 };
 /** Screen pixels the pointer must travel before a press turns into a drag. */
 const DRAG_THRESHOLD = 4;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
+
+const clampZoom = (zoom: number, settings: Settings) =>
+  clamp(zoom, settings.canvas.minZoomPercent / 100, settings.canvas.maxZoomPercent / 100);
+
+/** True for dialogs and menus drawn over the board, which handle their own mouse and wheel. */
+const isOverlayTarget = (target: EventTarget | null) =>
+  target instanceof Element && target.closest("[data-ui-overlay]") !== null;
 
 type Point = {
   x: number;
@@ -60,14 +70,21 @@ type Interaction =
 
 export default function C_canvas() {
   const canvasRef = useRef<HTMLDivElement | null>(null);
-  const [theme, setTheme] = useState<Theme>("dark");
+  const { settings, setSettings, isLoaded: areSettingsLoaded } = useSettings();
+  const systemTheme = useSystemTheme();
+  const [boardSettings, setBoardSettings] = useState<BoardSettings>(DEFAULT_BOARD_SETTINGS);
   const [items, setItems] = useState<BoardItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [toolbarPosition, setToolbarPosition] = useState({ x: 24, y: 24 });
   const [view, setView] = useState<BoardView>(DEFAULT_VIEW);
   const [selectionBox, setSelectionBox] = useState<Rect | null>(null);
   const [boardPath, setBoardPath] = useState<string | null>(null);
-  const [savedSnapshot, setSavedSnapshot] = useState(() => getBoardSnapshot({ theme: "dark", items: [] }));
+  const [savedSnapshot, setSavedSnapshot] = useState(() =>
+    getBoardSnapshot({ settings: DEFAULT_BOARD_SETTINGS, items: [] }),
+  );
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  /** The item whose option bar was opened by right-clicking it. */
+  const [optionsItemId, setOptionsItemId] = useState<string | null>(null);
   const interactionRef = useRef<Interaction | null>(null);
   const isFileActionRunningRef = useRef(false);
 
@@ -75,13 +92,42 @@ export default function C_canvas() {
   const itemsRef = useRef(items);
   const selectedIdsRef = useRef(selectedIds);
   const viewRef = useRef(view);
+  const settingsRef = useRef(settings);
+  const isSettingsOpenRef = useRef(isSettingsOpen);
+  isSettingsOpenRef.current = isSettingsOpen;
   itemsRef.current = items;
   selectedIdsRef.current = selectedIds;
   viewRef.current = view;
+  settingsRef.current = settings;
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const boardName = boardPath ? getBoardName(boardPath) : UNTITLED_BOARD_NAME;
-  const isDirty = useMemo(() => getBoardSnapshot({ theme, items }) !== savedSnapshot, [theme, items, savedSnapshot]);
+  const isDirty = useMemo(
+    () => getBoardSnapshot({ settings: boardSettings, items }) !== savedSnapshot,
+    [boardSettings, items, savedSnapshot],
+  );
+
+  // The board's own theme wins; otherwise the app setting, where "system" follows the operating system.
+  const appTheme: ThemeMode = settings.appearance.theme === "system" ? systemTheme : settings.appearance.theme;
+  const activeTheme: ThemeMode = boardSettings.theme === "app" ? appTheme : boardSettings.theme;
+
+  const toggleTheme = () => {
+    const nextTheme: ThemeMode = activeTheme === "dark" ? "light" : "dark";
+
+    // Flip whichever setting is in control, so the button always has a visible effect.
+    if (boardSettings.theme !== "app") {
+      setBoardSettings((current) => ({ ...current, theme: nextTheme }));
+    } else {
+      setSettings((current) => ({ ...current, appearance: { ...current.appearance, theme: nextTheme } }));
+    }
+  };
+
+  const rememberBoard = (nextBoardPath: string | null) => {
+    setSettings((current) => {
+      const withLastBoard = { ...current, memory: { ...current.memory, lastBoardPath: nextBoardPath } };
+      return nextBoardPath ? updateRecentBoards(withLastBoard, nextBoardPath) : withLastBoard;
+    });
+  };
 
   const getBoardPoint = (clientX: number, clientY: number): Point | null => {
     const canvasRect = canvasRef.current?.getBoundingClientRect();
@@ -131,7 +177,20 @@ export default function C_canvas() {
       });
     });
 
-    const resolvedImages = await Promise.all(nextImages);
+    const resolvedImages: BoardImageItem[] = await Promise.all(nextImages);
+
+    // A saved board gets its copies right away; a new board copies them on its first save.
+    // One at a time, so two files with the same name can't claim the same target name.
+    if (boardPath) {
+      for (const image of resolvedImages) {
+        try {
+          image.path = await copyImageIntoBoard(boardPath, image.path);
+        } catch (error) {
+          console.error(`Could not copy ${image.path} into the board; it will be copied on save.`, error);
+        }
+      }
+    }
+
     setItems((current) => [...current, ...resolvedImages]);
   };
 
@@ -146,6 +205,7 @@ export default function C_canvas() {
         width: 220,
         height: 110,
         text: "New text box",
+        style: { ...settings.text },
       },
     ]);
   };
@@ -158,6 +218,7 @@ export default function C_canvas() {
 
     event.preventDefault();
     event.stopPropagation();
+    setOptionsItemId((current) => (current === id ? current : null));
 
     const isAdditive = event.ctrlKey || event.metaKey;
     const current = selectedIdsRef.current;
@@ -220,11 +281,13 @@ export default function C_canvas() {
 
   const handleItemContextMenu = useCallback((id: string) => {
     setSelectedIds((current) => (current.includes(id) ? current : [id]));
+    setOptionsItemId(id);
   }, []);
 
   const handleItemDelete = useCallback((id: string) => {
     setItems((current) => current.filter((item) => item.id !== id));
     setSelectedIds((current) => current.filter((selectedId) => selectedId !== id));
+    setOptionsItemId((current) => (current === id ? null : current));
   }, []);
 
   const handleTextChange = useCallback((id: string, text: string) => {
@@ -233,6 +296,10 @@ export default function C_canvas() {
 
   const handleCanvasPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
+
+    if (isOverlayTarget(target)) {
+      return;
+    }
 
     if (event.button === 1) {
       event.preventDefault();
@@ -249,6 +316,7 @@ export default function C_canvas() {
     }
 
     event.preventDefault();
+    setOptionsItemId(null);
 
     const origin = getBoardPoint(event.clientX, event.clientY);
     if (!origin) {
@@ -269,6 +337,11 @@ export default function C_canvas() {
   };
 
   const handleCanvasContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    // Keep the normal menu (copy, paste) inside the settings dialog.
+    if (isOverlayTarget(event.target)) {
+      return;
+    }
+
     event.preventDefault();
 
     const canvas = canvasRef.current;
@@ -398,8 +471,8 @@ export default function C_canvas() {
     }
 
     const handleWheel = (event: WheelEvent) => {
-      // Let a text box being edited scroll normally.
-      if ((event.target as HTMLElement).closest(".board-textarea")) {
+      // Let a text box being edited, and the settings dialog, scroll normally.
+      if ((event.target as HTMLElement).closest(".board-textarea") || isOverlayTarget(event.target)) {
         return;
       }
 
@@ -412,7 +485,7 @@ export default function C_canvas() {
 
       // Zoom around the pointer: the board point under it stays put.
       setView((current) => {
-        const zoom = clamp(current.zoom * scaleStep, MIN_ZOOM, MAX_ZOOM);
+        const zoom = clampZoom(current.zoom * scaleStep, settingsRef.current);
         const boardX = (pointerX - current.x) / current.zoom;
         const boardY = (pointerY - current.y) / current.zoom;
         return { x: pointerX - boardX * zoom, y: pointerY - boardY * zoom, zoom };
@@ -424,21 +497,23 @@ export default function C_canvas() {
   }, []);
 
   const applyBoard = (board: BoardState, nextBoardPath: string | null) => {
-    setTheme(board.theme);
+    setBoardSettings(board.settings);
     setItems(board.items);
     setSelectedIds([]);
     setSelectionBox(null);
+    setOptionsItemId(null);
     setView({
       x: board.view.x || 0,
       y: board.view.y || 0,
-      zoom: Number.isFinite(board.view.zoom) ? clamp(board.view.zoom, MIN_ZOOM, MAX_ZOOM) : 1,
+      zoom: Number.isFinite(board.view.zoom) ? clampZoom(board.view.zoom, settingsRef.current) : 1,
     });
     setBoardPath(nextBoardPath);
     setSavedSnapshot(getBoardSnapshot(board));
+    rememberBoard(nextBoardPath);
   };
 
   const writeBoardTo = async (targetPath: string) => {
-    const board: BoardState = { theme, items, view };
+    const board: BoardState = { settings: boardSettings, items, view };
 
     try {
       const savedItems = await writeBoardFile(targetPath, board);
@@ -457,7 +532,8 @@ export default function C_canvas() {
         }),
       );
       setBoardPath(targetPath);
-      setSavedSnapshot(getBoardSnapshot({ theme, items: savedItems }));
+      setSavedSnapshot(getBoardSnapshot({ settings: boardSettings, items: savedItems }));
+      rememberBoard(targetPath);
       return true;
     } catch (error) {
       await showError("Could not save the board", error);
@@ -466,7 +542,7 @@ export default function C_canvas() {
   };
 
   const saveBoardAs = async () => {
-    const targetPath = await pickBoardSaveLocation(boardName);
+    const targetPath = await pickBoardSaveLocation(boardName, settings.general.defaultBoardFolder);
     return targetPath ? writeBoardTo(targetPath) : false;
   };
 
@@ -488,20 +564,28 @@ export default function C_canvas() {
 
   const newBoard = async () => {
     if (await resolveUnsavedChanges()) {
-      applyBoard({ theme, view: DEFAULT_VIEW, items: [] }, null);
+      applyBoard({ settings: DEFAULT_BOARD_SETTINGS, view: DEFAULT_VIEW, items: [] }, null);
     }
   };
 
-  const openBoard = async () => {
-    const targetPath = await pickBoardToOpen();
-    if (!targetPath || !(await resolveUnsavedChanges())) {
+  const openBoardAt = async (targetPath: string) => {
+    if (!(await resolveUnsavedChanges())) {
       return;
     }
 
     try {
       applyBoard(await readBoardFile(targetPath), targetPath);
     } catch (error) {
+      // A board that can't be read (moved, deleted) is dropped from the recent list.
+      setSettings((current) => updateRecentBoards(current, targetPath, true));
       await showError("Could not open the board", error);
+    }
+  };
+
+  const openBoard = async () => {
+    const targetPath = await pickBoardToOpen(settings.general.defaultBoardFolder);
+    if (targetPath) {
+      await openBoardAt(targetPath);
     }
   };
 
@@ -530,7 +614,14 @@ export default function C_canvas() {
       const target = event.target as HTMLElement;
       const isTyping = target.closest("textarea, input, [contenteditable='true']") !== null;
 
-      if ((event.key === "Delete" || event.key === "Backspace") && !isTyping) {
+      if (event.key === "," && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        setIsSettingsOpen((current) => !current);
+        return;
+      }
+
+      // While the settings dialog is open, Delete must not remove board items behind it.
+      if ((event.key === "Delete" || event.key === "Backspace") && !isTyping && !isSettingsOpenRef.current) {
         const selected = new Set(selectedIdsRef.current);
         if (selected.size > 0) {
           event.preventDefault();
@@ -589,12 +680,64 @@ export default function C_canvas() {
       });
   }, [boardName, isDirty]);
 
+  // Runs once, when settings.json has been read.
+  const hasAppliedStartupSettingsRef = useRef(false);
+  useEffect(() => {
+    if (!areSettingsLoaded || hasAppliedStartupSettingsRef.current) {
+      return;
+    }
+
+    hasAppliedStartupSettingsRef.current = true;
+    const { general, canvas, memory } = settingsRef.current;
+
+    if (canvas.rememberToolbarPosition && memory.toolbarPosition) {
+      // The window may be smaller than last time; keep the toolbar reachable.
+      setToolbarPosition({
+        x: clamp(memory.toolbarPosition.x, 16, Math.max(window.innerWidth - 160, 16)),
+        y: clamp(memory.toolbarPosition.y, 16, Math.max(window.innerHeight - 80, 16)),
+      });
+    }
+
+    const lastBoardPath = memory.lastBoardPath;
+    if (general.reopenLastBoard && lastBoardPath) {
+      readBoardFile(lastBoardPath)
+        .then((board) => applyBoard(board, lastBoardPath))
+        .catch((error) => {
+          // The board was moved or deleted since the last session; start with an empty one.
+          console.error("Could not reopen the last board.", error);
+          rememberBoard(null);
+        });
+    }
+  }, [areSettingsLoaded]);
+
+  // Changing the zoom limits pulls the current zoom back inside them.
+  useEffect(() => {
+    setView((current) => {
+      const zoom = clampZoom(current.zoom, settings);
+      return zoom === current.zoom ? current : { ...current, zoom };
+    });
+  }, [settings.canvas.minZoomPercent, settings.canvas.maxZoomPercent]);
+
+  const handleToolbarMove = (next: { x: number; y: number }) => {
+    setToolbarPosition(next);
+
+    if (settings.canvas.rememberToolbarPosition) {
+      setSettings((current) => ({ ...current, memory: { ...current.memory, toolbarPosition: next } }));
+    }
+  };
+
+  const closeSettings = useCallback(() => setIsSettingsOpen(false), []);
+
   const contentTransform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
+  const recentBoards = settings.general.showRecentBoards
+    ? settings.memory.recentBoards.slice(0, settings.general.recentBoardsLimit)
+    : [];
 
   return (
     <div
       ref={canvasRef}
-      className={`moodboard-canvas moodboard-canvas--${theme}`}
+      className={`moodboard-canvas moodboard-canvas--${activeTheme} moodboard-canvas--options-${settings.canvas.optionBar}`}
+      style={getCanvasVariables(settings, activeTheme, boardSettings.background === "dots")}
       aria-label="Moodboard canvas"
       onPointerDown={handleCanvasPointerDown}
       onContextMenu={handleCanvasContextMenu}
@@ -607,6 +750,7 @@ export default function C_canvas() {
             key={item.id}
             item={item}
             isSelected={selectedIdSet.has(item.id)}
+            isOptionsOpen={optionsItemId === item.id}
             onPointerDown={handleItemPointerDown}
             onResizeStart={handleResizeStart}
             onContextMenu={handleItemContextMenu}
@@ -630,17 +774,33 @@ export default function C_canvas() {
 
       <FloatingToolbar
         position={toolbarPosition}
-        onPositionChange={setToolbarPosition}
+        onPositionChange={handleToolbarMove}
+        size={settings.canvas.toolbarSize}
         onImport={() => {
           handleImport().catch((error) => showError("Could not import images", error));
         }}
         onAddText={handleAddText}
-        onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+        onToggleTheme={toggleTheme}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        recentBoards={recentBoards}
+        onOpenRecent={(path) => void runFileAction(() => openBoardAt(path))}
         onNewBoard={() => void runFileAction(newBoard)}
         onOpenBoard={() => void runFileAction(openBoard)}
         onSave={() => void runFileAction(saveBoard)}
         onSaveAs={() => void runFileAction(saveBoardAs)}
       />
+
+      {isSettingsOpen && (
+        <C_settingsDialog
+          settings={settings}
+          onSettingsChange={setSettings}
+          boardSettings={boardSettings}
+          onBoardSettingsChange={setBoardSettings}
+          boardName={boardName}
+          activeTheme={activeTheme}
+          onClose={closeSettings}
+        />
+      )}
     </div>
   );
 }

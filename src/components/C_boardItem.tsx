@@ -1,11 +1,26 @@
 import { memo, useEffect, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Crop, PencilLine, Trash } from "lucide-react";
-import { RESIZE_MODES, type BoardItem, type ResizeMode } from "../lib/boardItems";
+import { FONT_STACKS, RESIZE_MODES, type BoardItem, type ResizeMode, type TextStyle } from "../lib/boardItems";
+
+const JUSTIFY_BY_ALIGN: Record<TextStyle["align"], string> = { left: "flex-start", center: "center", right: "flex-end" };
+
+/** Inline styles for a styled text box; unstyled (older) text boxes keep the look from App.css. */
+const getTextStyle = (style: TextStyle | undefined): React.CSSProperties | undefined =>
+  style && {
+    fontFamily: FONT_STACKS[style.font],
+    fontSize: style.size,
+    fontWeight: 400,
+    color: style.color ?? undefined,
+    textAlign: style.align,
+    justifyContent: JUSTIFY_BY_ALIGN[style.align],
+  };
 
 type C_boardItemProps = {
   item: BoardItem;
   isSelected: boolean;
+  /** Set when the option bar was opened by right-clicking, for the "Right-click only" setting. */
+  isOptionsOpen: boolean;
   // These callbacks must keep the same identity across renders, or memo stops helping.
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>, id: string) => void;
   onResizeStart: (event: React.PointerEvent<HTMLDivElement>, id: string, mode: ResizeMode) => void;
@@ -17,6 +32,7 @@ type C_boardItemProps = {
 function C_boardItem({
   item,
   isSelected,
+  isOptionsOpen,
   onPointerDown,
   onResizeStart,
   onContextMenu,
@@ -45,7 +61,7 @@ function C_boardItem({
 
   return (
     <div
-      className={`board-item board-${item.type}-item${isSelected ? " is-selected" : ""}`}
+      className={`board-item board-${item.type}-item${isSelected ? " is-selected" : ""}${isOptionsOpen ? " is-options-open" : ""}`}
       style={{ left: item.x, top: item.y, width: item.width, height: item.height }}
       onPointerDown={handlePointerDown}
       onDragStart={(event) => event.preventDefault()}
@@ -66,13 +82,14 @@ function C_boardItem({
         ) : isEditing ? (
           <textarea
             className="board-textarea"
+            style={getTextStyle(item.style)}
             value={item.text}
             onChange={(event) => onTextChange(item.id, event.target.value)}
             onBlur={() => setIsEditing(false)}
             autoFocus
           />
         ) : (
-          <div className="board-text-content" onDoubleClick={() => setIsEditing(true)}>
+          <div className="board-text-content" style={getTextStyle(item.style)} onDoubleClick={() => setIsEditing(true)}>
             {item.text || "Double-click to edit"}
           </div>
         )}

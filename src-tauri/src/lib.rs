@@ -6,6 +6,7 @@ use tauri::{AppHandle, Manager};
 
 const BOARD_EXTENSION: &str = "kanvas";
 const IMAGES_DIR: &str = "Images";
+const SETTINGS_FILE: &str = "settings.json";
 
 fn to_message(error: impl std::fmt::Display) -> String {
     error.to_string()
@@ -73,13 +74,40 @@ fn read_board(app: AppHandle, board_path: String) -> Result<String, String> {
     Ok(contents)
 }
 
-/// Writes to a temporary file first so a failed save never leaves a half-written board behind.
+/// Writes to a temporary file first so a failed save never leaves a half-written file behind.
+fn write_atomically(path: &Path, contents: &str) -> Result<(), String> {
+    let mut temp_name = path.file_name().ok_or("Invalid file path")?.to_os_string();
+    temp_name.push(".tmp");
+    let temp_path = path.with_file_name(temp_name);
+    fs::write(&temp_path, contents).map_err(to_message)?;
+    fs::rename(&temp_path, path).map_err(to_message)
+}
+
 #[tauri::command]
 fn write_board(board_path: String, contents: String) -> Result<(), String> {
-    let path = PathBuf::from(board_path);
-    let temp_path = path.with_extension(format!("{BOARD_EXTENSION}.tmp"));
-    fs::write(&temp_path, contents).map_err(to_message)?;
-    fs::rename(&temp_path, &path).map_err(to_message)
+    write_atomically(Path::new(&board_path), &contents)
+}
+
+fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app.path().app_config_dir().map_err(to_message)?.join(SETTINGS_FILE))
+}
+
+/// Returns the saved app settings, or nothing on first launch.
+#[tauri::command]
+fn load_settings(app: AppHandle) -> Result<Option<String>, String> {
+    let path = settings_path(&app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    fs::read_to_string(path).map(Some).map_err(to_message)
+}
+
+#[tauri::command]
+fn save_settings(app: AppHandle, contents: String) -> Result<(), String> {
+    let path = settings_path(&app)?;
+    fs::create_dir_all(path.parent().ok_or("Invalid settings folder")?).map_err(to_message)?;
+    write_atomically(&path, &contents)
 }
 
 #[derive(Serialize)]
@@ -161,7 +189,9 @@ pub fn run() {
             prepare_board_path,
             read_board,
             write_board,
-            copy_image_to_board
+            copy_image_to_board,
+            load_settings,
+            save_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

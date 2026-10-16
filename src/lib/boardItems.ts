@@ -13,10 +13,31 @@ export type BoardImageItem = Rect & {
   name: string;
 };
 
+export type FontChoice = "sans" | "serif" | "mono" | "handwritten";
+export type TextAlign = "left" | "center" | "right";
+
+export type TextStyle = {
+  font: FontChoice;
+  /** In board pixels. */
+  size: number;
+  /** A hex colour, or null to follow the theme's text colour. */
+  color: string | null;
+  align: TextAlign;
+};
+
+export const FONT_STACKS: Record<FontChoice, string> = {
+  sans: 'Inter, Avenir, Helvetica, Arial, sans-serif',
+  serif: 'Georgia, "Times New Roman", serif',
+  mono: '"JetBrains Mono", "Fira Code", Menlo, Consolas, monospace',
+  handwritten: '"Segoe Print", "Bradley Hand", "Comic Neue", "Comic Sans MS", cursive',
+};
+
 export type BoardTextItem = Rect & {
   id: string;
   type: "text";
   text: string;
+  /** Text boxes made before text styles existed have none and use the original look. */
+  style?: TextStyle;
 };
 
 /** Everything placed on the board. The order of the items list is the stacking order: last is on top. */

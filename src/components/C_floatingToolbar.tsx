@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   Download,
   FileImage,
@@ -9,9 +9,12 @@ import {
   Image,
   Save,
   SaveAll,
+  Settings,
   SunMoon,
   type LucideIcon,
 } from "lucide-react";
+import { getBoardName } from "../lib/boardFile";
+import type { ToolbarSize } from "../lib/settings";
 
 type Position = {
   x: number;
@@ -25,7 +28,18 @@ type DragState = {
 
 type ToolbarAction = {
   label: string;
-  type: "new" | "open" | "save" | "save-as" | "import" | "link-image" | "link-doc" | "text" | "theme" | "export";
+  type:
+    | "new"
+    | "open"
+    | "save"
+    | "save-as"
+    | "import"
+    | "link-image"
+    | "link-doc"
+    | "text"
+    | "theme"
+    | "export"
+    | "settings";
   disabled?: boolean;
   dividerAfter?: boolean;
 };
@@ -38,6 +52,11 @@ type FloatingToolbarProps = {
   onImport: () => void;
   onAddText: () => void;
   onToggleTheme: () => void;
+  onOpenSettings: () => void;
+  /** When not empty, Open shows these boards in a menu before the file dialog. */
+  recentBoards: string[];
+  onOpenRecent: (boardPath: string) => void;
+  size: ToolbarSize;
   position?: Position;
   onPositionChange?: (next: Position) => void;
 };
@@ -57,6 +76,7 @@ function ToolbarIcon({ type }: { type: ToolbarAction["type"] }) {
     text: FileText,
     theme: SunMoon,
     export: Download,
+    settings: Settings,
   };
 
   const Icon = iconMap[type];
@@ -72,9 +92,15 @@ export default function FloatingToolbar({
   onImport,
   onAddText,
   onToggleTheme,
+  onOpenSettings,
+  recentBoards,
+  onOpenRecent,
+  size,
   position,
   onPositionChange,
 }: FloatingToolbarProps) {
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const [internalPosition, setInternalPosition] = useState<Position>({ x: 24, y: 24 });
@@ -99,8 +125,33 @@ export default function FloatingToolbar({
     { label: "Link document", type: "link-doc", disabled: true },
     { label: "Add text box", type: "text" },
     { label: "Theme", type: "theme" },
-    { label: "Export board", type: "export", disabled: true },
+    { label: "Export board", type: "export", disabled: true, dividerAfter: true },
+    { label: "Settings (Ctrl+,)", type: "settings" },
   ];
+
+  useEffect(() => {
+    if (!isRecentMenuOpen) {
+      return;
+    }
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!shellRef.current?.contains(event.target as Node)) {
+        setIsRecentMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsRecentMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", closeOnOutsidePointer);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOnOutsidePointer);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isRecentMenuOpen]);
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!dragStateRef.current) {
@@ -168,6 +219,13 @@ export default function FloatingToolbar({
       return;
     }
 
+    if (item.type === "open" && recentBoards.length > 0) {
+      setIsRecentMenuOpen((current) => !current);
+      return;
+    }
+
+    setIsRecentMenuOpen(false);
+
     const actions: Partial<Record<ToolbarAction["type"], () => void>> = {
       new: onNewBoard,
       open: onOpenBoard,
@@ -176,13 +234,18 @@ export default function FloatingToolbar({
       import: onImport,
       text: onAddText,
       theme: onToggleTheme,
+      settings: onOpenSettings,
     };
 
     actions[item.type]?.();
   };
 
   return (
-    <div className="floating-toolbar-shell" style={{ left: resolvedPosition.x, top: resolvedPosition.y }}>
+    <div
+      ref={shellRef}
+      className={`floating-toolbar-shell floating-toolbar-shell--${size}`}
+      style={{ left: resolvedPosition.x, top: resolvedPosition.y }}
+    >
       <div
         ref={panelRef}
         className="floating-toolbar"
@@ -217,6 +280,40 @@ export default function FloatingToolbar({
           </Fragment>
         ))}
       </div>
+
+      {isRecentMenuOpen && (
+        <div className="toolbar-menu" role="menu" aria-label="Recent boards">
+          <div className="toolbar-menu-title">Recent boards</div>
+          {recentBoards.map((boardPath) => (
+            <button
+              key={boardPath}
+              type="button"
+              role="menuitem"
+              className="toolbar-menu-item"
+              title={boardPath}
+              onClick={() => {
+                setIsRecentMenuOpen(false);
+                onOpenRecent(boardPath);
+              }}
+            >
+              <span>{getBoardName(boardPath)}</span>
+              <small>{boardPath}</small>
+            </button>
+          ))}
+          <div className="toolbar-menu-divider" />
+          <button
+            type="button"
+            role="menuitem"
+            className="toolbar-menu-item"
+            onClick={() => {
+              setIsRecentMenuOpen(false);
+              onOpenBoard();
+            }}
+          >
+            <span>Browse…</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -30,60 +30,29 @@ Permission: AI allowed
 - Updated README and PROJECT_GUIDE to match.
 #### Changes by "Claude"_ Date[15.10.2026]_time[23:21]:
 - Delete or Backspace now deletes all selected items (ignored while typing in a text box).
-- Removed "reopen the last board on startup". The app now always starts with an empty Untitled board. It is listed below as an optional setting instead.
+- Removed "reopen the last board on startup". The app now always starts with an empty Untitled board. It is listed in [[Settings Panel]] as an optional setting instead.
 
-#### Changes by "Claude"_ Date[15.10.2026]_time[23:21]: Settings panel outline (proposal, not implemented)
+#### Changes by "Claude"_ Date[15.10.2026]_time[23:21]: Settings panel outline
+- Wrote a proposal for the settings panel. Moved to its own note: [[Settings Panel]].
 
-**Opening and closing**
-- A gear button at the end of the floating toolbar, plus Ctrl+, (Cmd+, on macOS).
-- Opens as a panel sliding in from the right edge of the window, over the canvas, using the same glass style as the toolbar. Escape or clicking the canvas closes it.
-- Changes apply immediately; there is no OK/Apply button.
-
-**Two kinds of settings**
-- *App settings* apply to every board. Saved by Rust in the app's config folder (Linux `~/.config/com.krr.kanvas/settings.json`, Windows `%APPDATA%\com.krr.kanvas\`, macOS `~/Library/Application Support/com.krr.kanvas/`).
-- *Board settings* belong to one board. Saved inside its `.kanvas` file, so changing them marks the board unsaved. Each board-level option is labelled "This board".
-
-**Sections**
-1. General
-   - Reopen last board on startup (default: off).
-   - Default folder for new boards (Save As starts there).
-   - Recent boards: show list in Open, number of entries (5 / 10 / 20), "Clear list".
-2. Appearance
-   - Theme: Dark / Light / Follow system (app). Per-board theme override (This board).
-   - Canvas background: Dot grid / Plain / Paper texture (This board; paper texture is from the ideas in MoodBoard.md).
-   - Grid spacing (default 18px) and dot strength.
-   - Accent colour for selection outlines and handles.
-3. Canvas and mouse
-   - Zoom speed, minimum and maximum zoom (now fixed at 50% to 500%).
-   - Snap: off / to grid / to other items, with snap distance.
-   - Option bar: on hover and selection (now) / only on selection / only on right-click.
-   - Toolbar: remember its position between sessions.
-4. Images
-   - Default size of imported images (now 220px on the long side).
-   - Keep aspect ratio when resizing (Shift does the opposite).
-   - When to copy images into the board's Images folder: on import (as APP design.md describes) / on save (now).
-   - "Clean up unused images" button: lists files in Images/ that no item uses and offers to delete them.
-5. Text boxes
-   - Default font, size, colour and alignment for new text boxes.
-6. Saving
-   - Autosave: off / every 1 / 5 / 10 minutes (only for boards that already have a file).
-   - Keep a backup (`MyBoard.kanvas.bak`) of the previous save.
-7. Export (once Export is built)
-   - Format PNG / JPG, scale 1x / 2x / 4x, transparent or canvas background.
-   - Destination: the board's Export folder (as APP design.md describes) or ask each time.
-8. Keyboard shortcuts
-   - Read-only list for now: Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S, Delete, Ctrl+click, middle-drag, wheel zoom.
-9. About
-   - App version, board file format version, link to the GitHub repo.
-
-**Suggested build order**
-1. Settings storage: Rust commands `load_settings` / `save_settings`, a typed settings object with defaults, and a React context so any component can read settings.
-2. The panel shell (gear button, Ctrl+, , sections, Escape to close).
-3. Wire up the cheap, high-value options first: reopen last board, theme incl. Follow system, default image size, option bar mode, autosave.
-4. Add the rest as the related features land (snapping, export, text styling, cleanup).
-
-**Questions for the user**
-- Side panel, centered dialog, or a separate window?
-- Should the board-level options live in this panel, or in a separate "Board settings" panel?
-- Copy images on import or on save?
-- Which sections matter for the first version, and which can wait?
+#### Changes by "Claude"_ Date[16.10.2026]_time[07:59]:
+- Added [[Codebase Guide]] to the vault: a plain-language map of the code for a non-TypeScript/React/Rust reader. It covers the frontend/backend split, a folder map, a short intro to each language, how the app starts, what each file does, where data lives (including the .kanvas format), walkthroughs of dragging, saving, opening and closing, recipes for adding features (including a step-by-step starting point for the settings panel), commands to run, and a glossary.
+- No code changes.
+#### Changes by "Claude"_ Date[16.10.2026]_time[21:09]:
+- Moved the settings panel outline out of this log into its own note, [[Settings Panel]]. The content is unchanged; its sub-titles are now headings.
+- [[Codebase Guide]] now links to [[Settings Panel]].
+#### Changes by "Claude"_ Date[16.10.2026]_time[21:29]:
+- Built the first version of the settings dialog described in [[Settings Panel]]. It is a centered dialog, opened with the new gear button at the end of the toolbar or Ctrl+, and closed with Esc, ✕ or a click outside.
+- Settings are saved automatically to `settings.json` in the app's config folder (Rust commands `load_settings` / `save_settings`). Missing or invalid values fall back to defaults.
+- General: reopen last board on startup, default folder for Open / Save As, recent boards (on/off, 5 / 10 / 20, clear). Clicking Open in the toolbar now lists recent boards first, with "Browse…"; boards that can't be opened are removed from the list.
+- Appearance: Dark / Light / Follow system; per-board theme and background (Dot grid / Plain), marked "This board"; grid spacing; accent colour (selection, handles); editable colour schemes for dark and light mode, with reset. The toolbar's theme button flips the board's theme if it has one, otherwise the app theme.
+- Canvas and mouse: zoom limits, option bar mode (hover + selected / selected only / right-click only), remember toolbar position, toolbar size (small / medium / large).
+- Text boxes: default font, size, colour and alignment for new text boxes, with a live preview. Text boxes now also keep line breaks.
+- Keyboard shortcuts list and About section (version, file format, GitHub link).
+- Images are now copied into the board's Images folder on import (on the first save for a never-saved board).
+- Board file format is now version 3: a `settings` block (theme override, background) replaces `theme`; text boxes can carry a `style`. Older boards still open.
+- Shown as "coming soon": paper texture, snapping, cleaning up unused images, autosave, backup, export options. Not done: always keep aspect ratio when resizing.
+- Updated [[Settings Panel]] (status, answers), [[Codebase Guide]] (new files, where settings are stored, how to add a setting) and README.
+#### Changes by "Claude"_ Date[16.10.2026]_time[23:00]:
+- Set the app version to 0.9.0 (beta) in package.json, src-tauri/Cargo.toml and src-tauri/tauri.conf.json, and tagged the commit `v0.9.0`.
+- Planned for 1.0: undo/redo; hide or finish the disabled buttons (Link image, Link document, Export, Crop); build and test on Windows and macOS as well as Linux.

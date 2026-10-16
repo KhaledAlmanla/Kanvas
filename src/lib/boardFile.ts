@@ -2,12 +2,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { dirname, join } from "@tauri-apps/api/path";
 import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
 import type { BoardImageItem, BoardItem, BoardTextItem, Rect } from "./boardItems";
+import type { ThemeMode } from "./settings";
 
 export const BOARD_EXTENSION = "kanvas";
-const BOARD_FILE_VERSION = 2;
+export const BOARD_FILE_VERSION = 3;
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"];
-
-export type Theme = "dark" | "light";
 
 export type BoardView = {
   x: number;
@@ -15,8 +14,17 @@ export type BoardView = {
   zoom: number;
 };
 
+/** Settings that belong to one board (marked "This board" in the settings panel). */
+export type BoardSettings = {
+  /** "app" follows the app's theme setting. */
+  theme: "app" | ThemeMode;
+  background: "dots" | "plain" | "paper";
+};
+
+export const DEFAULT_BOARD_SETTINGS: BoardSettings = { theme: "app", background: "dots" };
+
 export type BoardState = {
-  theme: Theme;
+  settings: BoardSettings;
   view: BoardView;
   items: BoardItem[];
 };
@@ -29,16 +37,18 @@ type BoardFileItem = BoardFileImage | BoardTextItem;
 type BoardFile = {
   app: "kanvas";
   version: number;
-  theme: Theme;
+  settings: BoardSettings;
   view: BoardView;
   items: BoardFileItem[];
 };
 
-/** Version 1 kept images and text boxes in separate lists, with numeric ids. */
+/**
+ * Version 1 kept images and text boxes in separate lists, with numeric ids.
+ * Versions 1 and 2 also stored a theme; it is dropped on load so old boards follow the app theme.
+ */
 type BoardFileV1 = {
   app: "kanvas";
   version: 1;
-  theme: Theme;
   view: BoardView;
   images: (Rect & { id: number; name: string; file: string })[];
   textBoxes: (Rect & { id: number; text: string })[];
@@ -62,8 +72,8 @@ export const getBoardName = (boardPath: string) =>
 export const getFileName = (filePath: string) => filePath.split(/[\\/]/).pop() ?? filePath;
 
 /** Serializes the parts of a board that count as unsaved changes (panning and zooming don't). */
-export const getBoardSnapshot = ({ theme, items }: Pick<BoardState, "theme" | "items">) =>
-  JSON.stringify({ theme, items });
+export const getBoardSnapshot = ({ settings, items }: Pick<BoardState, "settings" | "items">) =>
+  JSON.stringify({ settings, items });
 
 /** Copies every image into the board's Images folder, then writes the board file. Returns the items with their new image paths. */
 export async function writeBoardFile(boardPath: string, board: BoardState): Promise<BoardItem[]> {
@@ -93,7 +103,7 @@ export async function writeBoardFile(boardPath: string, board: BoardState): Prom
   const contents: BoardFile = {
     app: "kanvas",
     version: BOARD_FILE_VERSION,
-    theme: board.theme,
+    settings: board.settings,
     view: board.view,
     items: fileItems,
   };
@@ -136,23 +146,41 @@ export async function readBoardFile(boardPath: string): Promise<BoardState> {
     }),
   );
 
+  const savedSettings = (parsed as Partial<BoardFile>).settings;
+  const settings: BoardSettings = {
+    theme: savedSettings?.theme === "dark" || savedSettings?.theme === "light" ? savedSettings.theme : "app",
+    background: savedSettings?.background === "plain" ? "plain" : "dots",
+  };
+
   return {
-    theme: parsed.theme === "light" ? "light" : "dark",
+    settings,
     view: parsed.view ?? { x: 0, y: 0, zoom: 1 },
     items,
   };
 }
 
-export async function pickBoardToOpen(): Promise<string | null> {
-  const selected = await open({ title: "Open board", multiple: false, directory: false, filters: boardFilters });
+export async function pickBoardToOpen(defaultFolder: string | null): Promise<string | null> {
+  const selected = await open({
+    title: "Open board",
+    multiple: false,
+    directory: false,
+    defaultPath: defaultFolder ?? undefined,
+    filters: boardFilters,
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+export async function pickFolder(title: string): Promise<string | null> {
+  const selected = await open({ title, multiple: false, directory: true });
   return typeof selected === "string" ? selected : null;
 }
 
 /** Asks where to save, and returns the final board file path inside its own folder. */
-export async function pickBoardSaveLocation(suggestedName: string): Promise<string | null> {
+export async function pickBoardSaveLocation(suggestedName: string, defaultFolder: string | null): Promise<string | null> {
+  const fileName = `${suggestedName}.${BOARD_EXTENSION}`;
   const chosenPath = await save({
     title: "Save board",
-    defaultPath: `${suggestedName}.${BOARD_EXTENSION}`,
+    defaultPath: defaultFolder ? await join(defaultFolder, fileName) : fileName,
     filters: boardFilters,
   });
 
@@ -177,6 +205,12 @@ export async function pickBoardSaveLocation(suggestedName: string): Promise<stri
   }
 
   return prepared.path;
+}
+
+/** Copies one image into a saved board's Images folder and returns the copy's path. */
+export async function copyImageIntoBoard(boardPath: string, sourcePath: string): Promise<string> {
+  const stored = await invoke<StoredImageFile>("copy_image_to_board", { boardPath, sourcePath });
+  return stored.path;
 }
 
 export async function pickImagesToImport(): Promise<string[]> {
