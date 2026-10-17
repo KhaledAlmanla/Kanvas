@@ -16,6 +16,8 @@ The goal: safe to use for real work, nothing in the toolbar that doesn't work, a
 - [ ] **Always keep the aspect ratio** when resizing images (from the [Settings Panel](Settings%20Panel.md) notes).
 - [ ] **Windows and macOS builds,** each tested at least once (open, save, import, settings). Today only a Linux `.deb` is built.
 - [ ] Test the 0.9 settings dialog in the running app and fix what turns up.
+- [ ] Copy paste images into the board, and with in the board.
+- [ ] Drag and drop images  into the board.
 
 ## Later
 
@@ -28,6 +30,9 @@ Features from [APP design](APP%20design.md) and [Settings Panel](Settings%20Pane
 - [ ] Layer ordering (bring forward, send backward).
 - [ ] Change the style of an existing text box (font, size, colour, alignment).
 - [ ] Snap to grid or to other items.
+- [ ] Using ctrl or other modifiers  will lock the aspect ratio while doing scale transform.
+- [ ] Remember the last folder the user opened.
+- [ ] When importing an image, it is to be loaded in the middle of the visible part of the canvas.
 
 ### Canvas look
 - [ ] Paper texture background.

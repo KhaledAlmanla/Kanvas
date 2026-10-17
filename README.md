@@ -2,11 +2,25 @@
 
 Kanvas is a desktop app for creating visual inspiration boards. It combines a draggable canvas, image imports, editable text boxes, and light/dark theme switching in a simple desktop workspace.
 
+## Download
+
+**Kanvas 0.9.0 (beta) for Linux:** [Kanvas_0.9.0_amd64.deb](https://github.com/KhaledAlmanla/Kanvas/releases/download/v0.9.0/Kanvas_0.9.0_amd64.deb) (Debian, Ubuntu and similar, 64-bit)
+
+Install it from the folder you downloaded it to:
+
+```bash
+sudo apt install ./Kanvas_0.9.0_amd64.deb
+```
+
+Kanvas then appears in your app menu under Graphics. To uninstall: `sudo apt remove kanvas`.
+
+Windows and macOS versions are planned for 1.0. All releases: [GitHub Releases](https://github.com/KhaledAlmanla/Kanvas/releases).
+
 ## Versions
 
 **Current: 0.9.0 (beta), 16 October 2026.** Boards saved as files, a settings dialog, recent boards, and editing that works at any zoom.
 
-**Next: 1.0.** Undo/redo, no unfinished toolbar buttons, always-locked aspect ratio, and tested builds for Windows and macOS.
+**Next: 1.0.** Undo/redo, copy/paste and drag-and-drop for images, no unfinished toolbar buttons, always-locked aspect ratio, and tested builds for Windows and macOS.
 
 - [Changelog](MoodBoard%20App/CHANGELOG.md): what changed in each version
 - [Roadmap](MoodBoard%20App/Roadmap.md): what's planned

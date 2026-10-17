@@ -63,3 +63,7 @@ Permission: AI allowed
 #### Changes by "Claude"_ Date[17.10.2026]_time[10:49]:
 - Release packaging for 0.9.0: the Linux package now installs the program as `kanvas` (was `the-moodboard`), describes itself as "Mood boards for the desktop" (was "A Tauri App"), lists Khaled Almanla as maintainer, and appears under Graphics in app menus.
 - Built `Kanvas_0.9.0_amd64.deb` and moved the local `v0.9.0` tag to the commit containing the changelog and these packaging fixes (the tag had not been pushed yet).
+#### Changes by "Claude"_ Date[17.10.2026]_time[12:19]:
+- README: added a Download section with a direct link to `Kanvas_0.9.0_amd64.deb` on the v0.9.0 GitHub release, install and uninstall commands, and a link to all releases.
+- README: the "Next: 1.0" line now also lists copy/paste and drag-and-drop for images, matching the user's additions to [[Roadmap]].
+- The screenshot was left out at the user's request (it showed a private room).
