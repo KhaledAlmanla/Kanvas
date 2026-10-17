@@ -227,7 +227,7 @@ At the bottom, `mod tests` holds automated tests (`cargo test` in `src-tauri/`).
 |---|---|
 | `src-tauri/tauri.conf.json` | App name, version, window size (now 800×600), packaging. `"targets": ["deb"]` means it only builds a Linux .deb package for now. |
 | `src-tauri/capabilities/default.json` | Permissions. If a Tauri feature fails with "not allowed", its permission goes here. |
-| `src-tauri/Cargo.toml` | Rust libraries. The package is still called `the-moodboard` from the template, which is harmless. |
+| `src-tauri/Cargo.toml` | Rust libraries. The Rust package is still called `the-moodboard` from the template, which is harmless: the installed program is named `kanvas` through `mainBinaryName` in `tauri.conf.json`. |
 | `package.json` | Frontend libraries and the `npm run …` commands. |
 
 ---

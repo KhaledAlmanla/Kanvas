@@ -60,3 +60,6 @@ Permission: AI allowed
 - Added [[CHANGELOG]] (what changed in each version, Keep a Changelog format, entries for 0.1.0 and 0.9.0) and [[Roadmap]] (the 1.0 plan and later features, as checkboxes).
 - Both use standard Markdown links instead of [[wikilinks]], so they work in Obsidian and on GitHub.
 - README now has a "Versions" section near the top (current version, what's next, links to both files), and its "Notes for future work" list points to the Roadmap.
+#### Changes by "Claude"_ Date[17.10.2026]_time[10:49]:
+- Release packaging for 0.9.0: the Linux package now installs the program as `kanvas` (was `the-moodboard`), describes itself as "Mood boards for the desktop" (was "A Tauri App"), lists Khaled Almanla as maintainer, and appears under Graphics in app menus.
+- Built `Kanvas_0.9.0_amd64.deb` and moved the local `v0.9.0` tag to the commit containing the changelog and these packaging fixes (the tag had not been pushed yet).
