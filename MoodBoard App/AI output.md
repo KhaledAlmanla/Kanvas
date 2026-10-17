@@ -67,3 +67,6 @@ Permission: AI allowed
 - README: added a Download section with a direct link to `Kanvas_0.9.0_amd64.deb` on the v0.9.0 GitHub release, install and uninstall commands, and a link to all releases.
 - README: the "Next: 1.0" line now also lists copy/paste and drag-and-drop for images, matching the user's additions to [[Roadmap]].
 - The screenshot was left out at the user's request (it showed a private room).
+#### Changes by "Claude"_ Date[17.10.2026]_time[12:31]:
+- Rewrote README.md for GitHub visitors and made it shorter (about 50 lines instead of about 190). It now covers: what Kanvas is and why (local, no account, boards are plain folders), the new screenshot (`Screenshots/v0.9.0_Linux_01.png`), a clear note that it is a free, vibe-coded app written by AI coding assistants, what you can do, the Linux download, status with links to [[CHANGELOG]] and [[Roadmap]], and how to build it.
+- The old technical sections (structure, components, data model, board files, settings location) were removed from the README. [[Codebase Guide]] covers them, and the README links to it.
