@@ -2,6 +2,15 @@
 
 Kanvas is a desktop app for creating visual inspiration boards. It combines a draggable canvas, image imports, editable text boxes, and light/dark theme switching in a simple desktop workspace.
 
+## Versions
+
+**Current: 0.9.0 (beta), 16 October 2026.** Boards saved as files, a settings dialog, recent boards, and editing that works at any zoom.
+
+**Next: 1.0.** Undo/redo, no unfinished toolbar buttons, always-locked aspect ratio, and tested builds for Windows and macOS.
+
+- [Changelog](MoodBoard%20App/CHANGELOG.md): what changed in each version
+- [Roadmap](MoodBoard%20App/Roadmap.md): what's planned
+
 ## What this app does
 
 The app lets users:
@@ -157,14 +166,7 @@ npm run tauri
 
 ## Notes for future work
 
-This app is a solid foundation for adding:
-
-- export to PNG or PDF
-- layer ordering and selection
-- drag-and-drop reordering
-- richer text formatting
-- undo/redo history
-- AI-assisted moodboard generation
+Planned features are tracked in the [Roadmap](MoodBoard%20App/Roadmap.md).
 
 ## Summary
 

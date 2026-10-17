@@ -56,3 +56,7 @@ Permission: AI allowed
 #### Changes by "Claude"_ Date[16.10.2026]_time[23:00]:
 - Set the app version to 0.9.0 (beta) in package.json, src-tauri/Cargo.toml and src-tauri/tauri.conf.json, and tagged the commit `v0.9.0`.
 - Planned for 1.0: undo/redo; hide or finish the disabled buttons (Link image, Link document, Export, Crop); build and test on Windows and macOS as well as Linux.
+#### Changes by "Claude"_ Date[17.10.2026]_time[10:41]:
+- Added [[CHANGELOG]] (what changed in each version, Keep a Changelog format, entries for 0.1.0 and 0.9.0) and [[Roadmap]] (the 1.0 plan and later features, as checkboxes).
+- Both use standard Markdown links instead of [[wikilinks]], so they work in Obsidian and on GitHub.
+- README now has a "Versions" section near the top (current version, what's next, links to both files), and its "Notes for future work" list points to the Roadmap.
