@@ -9,7 +9,10 @@ Planned work is in the [Roadmap](Roadmap.md). Detailed notes on each change are 
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- **Copy, cut and paste** (Ctrl+C, Ctrl+X, Ctrl+V). Selected images and text boxes are pasted at the mouse pointer with their layout kept, also into another board.
+- **Paste images from other apps.** Ctrl+V adds a copied image, such as a screenshot or an image copied in a browser, or image files copied in the file manager.
+- **Drag and drop image files** from a folder onto the board. They land where they are dropped.
 
 ## [0.9.0] - 2026-10-16
 

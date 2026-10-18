@@ -1,25 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import FloatingToolbar from "./C_floatingToolbar";
 import C_boardItem from "./C_boardItem";
 import C_settingsDialog from "./C_settingsDialog";
 import {
   DEFAULT_BOARD_SETTINGS,
+  allowImageFiles,
   askAboutUnsavedChanges,
   copyImageIntoBoard,
   getBoardName,
   getBoardSnapshot,
   getFileName,
+  isImagePath,
   pickBoardSaveLocation,
   pickBoardToOpen,
   pickImagesToImport,
   readBoardFile,
+  readClipboard,
   showError,
   writeBoardFile,
+  writeClipboardText,
   type BoardSettings,
   type BoardState,
   type BoardView,
+  type ClipboardContents,
 } from "../lib/boardFile";
 import {
   MIN_ITEM_SIZE,
@@ -38,6 +44,8 @@ const UNTITLED_BOARD_NAME = "Untitled board";
 const DEFAULT_VIEW: BoardView = { x: 0, y: 0, zoom: 1 };
 /** Screen pixels the pointer must travel before a press turns into a drag. */
 const DRAG_THRESHOLD = 4;
+/** Written to the system clipboard when board items are copied, so a paste can tell they are still the latest copy. */
+const CLIPBOARD_MARKER_PREFIX = "kanvas-items:";
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -85,7 +93,13 @@ export default function C_canvas() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   /** The item whose option bar was opened by right-clicking it. */
   const [optionsItemId, setOptionsItemId] = useState<string | null>(null);
+  /** True while files are dragged over the window. */
+  const [isDropTarget, setIsDropTarget] = useState(false);
   const interactionRef = useRef<Interaction | null>(null);
+  /** Last pointer position in client coordinates, used to place pasted items. */
+  const lastPointerRef = useRef<Point | null>(null);
+  /** Board items copied with Ctrl+C, and the marker written to the system clipboard with them. */
+  const boardClipboardRef = useRef<{ marker: string; items: BoardItem[] } | null>(null);
   const isFileActionRunningRef = useRef(false);
 
   // Pointer handlers are registered once and read the latest state through these refs.
@@ -142,13 +156,32 @@ export default function C_canvas() {
     };
   };
 
-  const handleImport = async () => {
-    const imagePaths = await pickImagesToImport();
+  /** Where pasted items go: under the pointer when it's over the board, otherwise the middle of the view. */
+  const getPasteCenter = (): Point | null => {
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    const pointer = lastPointerRef.current;
 
-    if (imagePaths.length === 0) {
-      return;
+    if (!canvasRect) {
+      return null;
     }
 
+    const isPointerOverBoard =
+      pointer !== null &&
+      pointer.x >= canvasRect.left &&
+      pointer.x <= canvasRect.right &&
+      pointer.y >= canvasRect.top &&
+      pointer.y <= canvasRect.bottom;
+
+    return isPointerOverBoard
+      ? getBoardPoint(pointer.x, pointer.y)
+      : getBoardPoint(canvasRect.left + canvasRect.width / 2, canvasRect.top + canvasRect.height / 2);
+  };
+
+  /**
+   * Adds image files to the board, cascading them slightly. With a center, the first image is centered
+   * on that board point; otherwise they start near the board's origin. Returns the new items' ids.
+   */
+  const addImages = async (imagePaths: string[], center: Point | null = null) => {
     const nextImages = imagePaths.map((path, index) => {
       const naturalSize = new Promise<{ width: number; height: number }>((resolve) => {
         const img = new Image();
@@ -164,13 +197,15 @@ export default function C_canvas() {
         const width = aspectRatio >= 1 ? maxSize : maxSize * aspectRatio;
         const height = aspectRatio >= 1 ? maxSize / aspectRatio : maxSize;
 
+        const origin = center ? { x: center.x - width / 2, y: center.y - height / 2 } : { x: 64, y: 64 };
+
         return {
           id: createItemId(),
           type: "image",
           path,
           name: getFileName(path),
-          x: 64 + index * 28,
-          y: 64 + index * 24,
+          x: origin.x + index * 28,
+          y: origin.y + index * 24,
           width,
           height,
         } satisfies BoardImageItem;
@@ -192,6 +227,89 @@ export default function C_canvas() {
     }
 
     setItems((current) => [...current, ...resolvedImages]);
+    return resolvedImages.map((image) => image.id);
+  };
+
+  const handleImport = async () => {
+    const imagePaths = await pickImagesToImport();
+
+    if (imagePaths.length > 0) {
+      await addImages(imagePaths);
+    }
+  };
+
+  /** Copies the selected items to Kanvas' own clipboard, and marks the system clipboard so a later copy elsewhere wins. */
+  const copySelection = () => {
+    const selected = new Set(selectedIdsRef.current);
+    const copiedItems = itemsRef.current.filter((item) => selected.has(item.id));
+
+    if (copiedItems.length === 0) {
+      return false;
+    }
+
+    const marker = `${CLIPBOARD_MARKER_PREFIX}${createItemId()}`;
+    boardClipboardRef.current = { marker, items: copiedItems };
+    writeClipboardText(marker).catch((error) => console.error("Could not write to the clipboard.", error));
+    return true;
+  };
+
+  const cutSelection = () => {
+    if (copySelection()) {
+      const selected = new Set(selectedIdsRef.current);
+      setItems((current) => current.filter((item) => !selected.has(item.id)));
+      setSelectedIds([]);
+    }
+  };
+
+  /** Pastes copies of board items, keeping their layout, centered on a board point. */
+  const pasteBoardItems = (copiedItems: BoardItem[], center: Point | null) => {
+    const left = Math.min(...copiedItems.map((item) => item.x));
+    const top = Math.min(...copiedItems.map((item) => item.y));
+    const right = Math.max(...copiedItems.map((item) => item.x + item.width));
+    const bottom = Math.max(...copiedItems.map((item) => item.y + item.height));
+    // Without a center, paste slightly offset so the copies don't hide the originals.
+    const offsetX = center ? center.x - (left + right) / 2 : 24;
+    const offsetY = center ? center.y - (top + bottom) / 2 : 24;
+
+    const pasted = copiedItems.map((item) => ({ ...item, id: createItemId(), x: item.x + offsetX, y: item.y + offsetY }));
+    setItems((current) => [...current, ...pasted]);
+    setSelectedIds(pasted.map((item) => item.id));
+  };
+
+  /** Pastes Kanvas items copied on the board, or images and image files copied in other apps. */
+  const paste = async () => {
+    const center = getPasteCenter();
+    const boardClipboard = boardClipboardRef.current;
+    let contents: ClipboardContents;
+
+    try {
+      contents = await readClipboard(boardPath);
+    } catch (error) {
+      // Kanvas' own clipboard still works when the system clipboard can't be read.
+      console.error("Could not read the clipboard.", error);
+      if (boardClipboard) {
+        pasteBoardItems(boardClipboard.items, center);
+      }
+      return;
+    }
+
+    if (boardClipboard && contents.text?.trim() === boardClipboard.marker) {
+      pasteBoardItems(boardClipboard.items, center);
+    } else if (contents.imagePaths.length > 0) {
+      setSelectedIds(await addImages(contents.imagePaths, center));
+    }
+  };
+
+  /** Adds image files dropped on the window at the drop point; other files are ignored. */
+  const dropFiles = async (paths: string[], clientPoint: Point) => {
+    const imagePaths = await allowImageFiles(paths);
+
+    if (imagePaths.length === 0) {
+      await showError("Nothing to add", "Only image files can be dropped on the board.");
+      return;
+    }
+
+    setSelectedIds(await addImages(imagePaths, getBoardPoint(clientPoint.x, clientPoint.y)));
   };
 
   const handleAddText = () => {
@@ -368,6 +486,7 @@ export default function C_canvas() {
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
+      lastPointerRef.current = { x: event.clientX, y: event.clientY };
       const interaction = interactionRef.current;
       if (!interaction) {
         return;
@@ -608,6 +727,8 @@ export default function C_canvas() {
   // Window-level listeners are registered once, so they read the latest actions through this ref.
   const fileActionsRef = useRef({ saveBoard, saveBoardAs, newBoard, openBoard, resolveUnsavedChanges, runFileAction });
   fileActionsRef.current = { saveBoard, saveBoardAs, newBoard, openBoard, resolveUnsavedChanges, runFileAction };
+  const editActionsRef = useRef({ copySelection, cutSelection, paste, dropFiles });
+  editActionsRef.current = { copySelection, cutSelection, paste, dropFiles };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -632,6 +753,22 @@ export default function C_canvas() {
       }
 
       if (!(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+
+      // Copy, cut and paste of board items; inside text boxes and the settings dialog they edit text as usual.
+      const editKey = event.key.toLowerCase();
+      if ((editKey === "c" || editKey === "x" || editKey === "v") && !isTyping && !isSettingsOpenRef.current) {
+        event.preventDefault();
+        const { copySelection, cutSelection, paste } = editActionsRef.current;
+
+        if (editKey === "c") {
+          copySelection();
+        } else if (editKey === "x") {
+          cutSelection();
+        } else {
+          paste().catch((error) => showError("Could not paste", error));
+        }
         return;
       }
 
@@ -664,6 +801,31 @@ export default function C_canvas() {
 
       if (!canClose) {
         event.preventDefault();
+      }
+    });
+
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, []);
+
+  // Files dragged in from other apps. Tauri reports them with their paths, which web drop events can't.
+  useEffect(() => {
+    const unlistenPromise = getCurrentWebview().onDragDropEvent(({ payload }) => {
+      if (payload.type === "enter") {
+        setIsDropTarget(payload.paths.some(isImagePath));
+      } else if (payload.type === "leave") {
+        setIsDropTarget(false);
+      } else if (payload.type === "drop") {
+        setIsDropTarget(false);
+        // Positions arrive in physical pixels.
+        const clientPoint = {
+          x: payload.position.x / window.devicePixelRatio,
+          y: payload.position.y / window.devicePixelRatio,
+        };
+        editActionsRef.current
+          .dropFiles(payload.paths, clientPoint)
+          .catch((error) => showError("Could not add the dropped images", error));
       }
     });
 
@@ -736,7 +898,7 @@ export default function C_canvas() {
   return (
     <div
       ref={canvasRef}
-      className={`moodboard-canvas moodboard-canvas--${activeTheme} moodboard-canvas--options-${settings.canvas.optionBar}`}
+      className={`moodboard-canvas moodboard-canvas--${activeTheme} moodboard-canvas--options-${settings.canvas.optionBar}${isDropTarget ? " is-drop-target" : ""}`}
       style={getCanvasVariables(settings, activeTheme, boardSettings.background === "dots")}
       aria-label="Moodboard canvas"
       onPointerDown={handleCanvasPointerDown}

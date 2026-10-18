@@ -6,7 +6,7 @@ import type { ThemeMode } from "./settings";
 
 export const BOARD_EXTENSION = "kanvas";
 export const BOARD_FILE_VERSION = 3;
-const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"];
+export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"];
 
 export type BoardView = {
   x: number;
@@ -223,6 +223,24 @@ export async function pickImagesToImport(): Promise<string[]> {
 
   return selected ?? [];
 }
+
+/** Keeps only the image files among the given paths (e.g. files dropped on the window), ready to display. */
+export const allowImageFiles = (paths: string[]) => invoke<string[]>("allow_image_files", { paths });
+
+export const isImagePath = (path: string) =>
+  IMAGE_EXTENSIONS.includes(path.split(".").pop()?.toLowerCase() ?? "");
+
+export type ClipboardContents = {
+  text: string | null;
+  /** Copied image files, or the file a copied image (such as a screenshot) was saved to. */
+  imagePaths: string[];
+};
+
+/** Reads the system clipboard. A copied image is saved into the board (or a cache folder until the first save). */
+export const readClipboard = (boardPath: string | null) =>
+  invoke<ClipboardContents>("read_clipboard", { boardPath });
+
+export const writeClipboardText = (text: string) => invoke<void>("write_clipboard_text", { text });
 
 export type UnsavedChangesChoice = "save" | "discard" | "cancel";
 

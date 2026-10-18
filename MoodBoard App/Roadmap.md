@@ -16,8 +16,6 @@ The goal: safe to use for real work, nothing in the toolbar that doesn't work, a
 - [ ] **Always keep the aspect ratio** when resizing images (from the [Settings Panel](Settings%20Panel.md) notes).
 - [ ] **Windows and macOS builds,** each tested at least once (open, save, import, settings). Today only a Linux `.deb` is built.
 - [ ] Test the 0.9 settings dialog in the running app and fix what turns up.
-- [ ] Copy paste images into the board, and with in the board.
-- [ ] Drag and drop images  into the board.
 
 ## Later
 

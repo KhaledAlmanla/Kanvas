@@ -3,10 +3,15 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 const BOARD_EXTENSION: &str = "kanvas";
 const IMAGES_DIR: &str = "Images";
 const SETTINGS_FILE: &str = "settings.json";
+const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"];
+/// Pasted images on a board that was never saved wait here until its first save copies them.
+const PASTED_IMAGES_DIR: &str = "Pasted images";
+const PASTED_IMAGE_NAME: &str = "Pasted image.png";
 
 fn to_message(error: impl std::fmt::Display) -> String {
     error.to_string()
@@ -180,16 +185,147 @@ fn copy_image_to_board(board_path: String, source_path: String) -> Result<BoardI
     })
 }
 
+fn is_image_file(path: &Path) -> bool {
+    let has_image_extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| IMAGE_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()));
+    has_image_extension && path.is_file()
+}
+
+/// Lets the webview display these files.
+fn allow_files(app: &AppHandle, paths: &[String]) -> Result<(), String> {
+    let scope = app.asset_protocol_scope();
+    paths
+        .iter()
+        .try_for_each(|path| scope.allow_file(Path::new(path)).map_err(to_message))
+}
+
+/// Keeps only the image files among the given paths (e.g. files dropped on the window) and lets the webview display them.
+#[tauri::command]
+fn allow_image_files(app: AppHandle, paths: Vec<String>) -> Result<Vec<String>, String> {
+    let images: Vec<String> = paths.into_iter().filter(|path| is_image_file(Path::new(path))).collect();
+    allow_files(&app, &images)?;
+    Ok(images)
+}
+
+fn decode_percent_escapes(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+
+    while index < bytes.len() {
+        let escaped = (bytes[index] == b'%')
+            .then(|| text.get(index + 1..index + 3))
+            .flatten()
+            .and_then(|hex| u8::from_str_radix(hex, 16).ok());
+
+        match escaped {
+            Some(byte) => {
+                decoded.push(byte);
+                index += 3;
+            }
+            None => {
+                decoded.push(bytes[index]);
+                index += 1;
+            }
+        }
+    }
+
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
+/// Turns one line of copied text into a file path: file managers copy plain paths or file:// URLs.
+fn path_from_clipboard_line(line: &str) -> Option<PathBuf> {
+    let line = line.trim();
+    let Some(url_path) = line.strip_prefix("file://") else {
+        return (!line.is_empty()).then(|| PathBuf::from(line));
+    };
+
+    // Skip a host name, as in file://localhost/home/...
+    let url_path = &url_path[url_path.find('/')?..];
+    let decoded = decode_percent_escapes(url_path);
+    // Windows URLs look like file:///C:/Users/...
+    let is_windows_drive = decoded.as_bytes().get(2) == Some(&b':');
+    Some(PathBuf::from(if is_windows_drive { &decoded[1..] } else { &decoded[..] }))
+}
+
+/// The image files named in copied text, one per line; anything else in the text is ignored.
+fn image_paths_in_text(text: &str) -> Vec<String> {
+    // Long text is a document, not a list of copied files.
+    if text.len() > 64 * 1024 {
+        return Vec::new();
+    }
+
+    text.lines()
+        .filter_map(path_from_clipboard_line)
+        .filter(|path| is_image_file(path))
+        .map(|path| path_string(&path))
+        .collect()
+}
+
+fn write_png(path: &Path, width: u32, height: u32, rgba: &[u8]) -> Result<(), String> {
+    let file = fs::File::create(path).map_err(to_message)?;
+    let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().map_err(to_message)?;
+    writer.write_image_data(rgba).map_err(to_message)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClipboardContents {
+    text: Option<String>,
+    /// Copied image files, or the file a copied image (such as a screenshot) was saved to.
+    image_paths: Vec<String>,
+}
+
+/// Reads the system clipboard for pasting. A copied image is saved as a PNG: into the board's
+/// Images folder when the board has been saved, otherwise into the app's cache until the first save.
+#[tauri::command]
+fn read_clipboard(app: AppHandle, board_path: Option<String>) -> Result<ClipboardContents, String> {
+    let clipboard = app.clipboard();
+    let text = clipboard.read_text().ok();
+    let mut image_paths = text.as_deref().map(image_paths_in_text).unwrap_or_default();
+
+    if image_paths.is_empty() {
+        if let Ok(image) = clipboard.read_image() {
+            let dir = match &board_path {
+                Some(board_path) => board_dir(Path::new(board_path))?.join(IMAGES_DIR),
+                None => app.path().app_cache_dir().map_err(to_message)?.join(PASTED_IMAGES_DIR),
+            };
+            fs::create_dir_all(&dir).map_err(to_message)?;
+
+            let path = unique_file_path(&dir, PASTED_IMAGE_NAME);
+            write_png(&path, image.width(), image.height(), image.rgba())?;
+            image_paths.push(path_string(&path));
+        }
+    }
+
+    allow_files(&app, &image_paths)?;
+    Ok(ClipboardContents { text, image_paths })
+}
+
+#[tauri::command]
+fn write_clipboard_text(app: AppHandle, text: String) -> Result<(), String> {
+    app.clipboard().write_text(text).map_err(to_message)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             prepare_board_path,
             read_board,
             write_board,
             copy_image_to_board,
+            allow_image_files,
+            read_clipboard,
+            write_clipboard_text,
             load_settings,
             save_settings
         ])
@@ -252,6 +388,35 @@ mod tests {
         assert_eq!(fs::read_dir(root.join("Board").join(IMAGES_DIR)).unwrap().count(), 2);
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn copied_text_yields_image_files() {
+        let root = temp_dir("clipboard");
+        let photo = root.join("my photo.png");
+        let notes = root.join("notes.txt");
+        fs::write(&photo, b"png").unwrap();
+        fs::write(&notes, b"text").unwrap();
+
+        let photo_path = path_string(&photo);
+        let photo_url = format!("file://{}", photo_path.replace(' ', "%20"));
+
+        // Plain paths, as GNOME Files copies them.
+        assert_eq!(image_paths_in_text(&format!("{photo_path}\n{}", path_string(&notes))), vec![photo_path.clone()]);
+        // A URL list with a "copy" header, as other file managers copy them.
+        assert_eq!(image_paths_in_text(&format!("copy\n{photo_url}\n")), vec![photo_path.clone()]);
+        // Ordinary text is not a file list.
+        assert!(image_paths_in_text("just some words").is_empty());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn file_urls_are_decoded() {
+        assert_eq!(path_from_clipboard_line("file:///home/me/a%20b.png"), Some(PathBuf::from("/home/me/a b.png")));
+        assert_eq!(path_from_clipboard_line("file://localhost/tmp/x.png"), Some(PathBuf::from("/tmp/x.png")));
+        assert_eq!(path_from_clipboard_line("file:///C:/Users/me/x.png"), Some(PathBuf::from("C:/Users/me/x.png")));
+        assert_eq!(path_from_clipboard_line("   "), None);
     }
 
     #[test]
