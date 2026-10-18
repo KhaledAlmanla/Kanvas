@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Download,
   FileImage,
@@ -13,6 +13,7 @@ import {
   SunMoon,
   type LucideIcon,
 } from "lucide-react";
+import { PulsingBorder } from "@paper-design/shaders-react";
 import { getBoardName } from "../lib/boardFile";
 import type { ToolbarSize } from "../lib/settings";
 
@@ -61,6 +62,9 @@ type FloatingToolbarProps = {
   onPositionChange?: (next: Position) => void;
 };
 
+/** Colors of the glowing spots that travel around the toolbar's edge. */
+const PULSE_COLORS = ["#0dc1fd", "#d915ef", "#ff3f2ecc"];
+
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
@@ -102,6 +106,7 @@ export default function FloatingToolbar({
   const shellRef = useRef<HTMLDivElement | null>(null);
   const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const [pulseRoundness, setPulseRoundness] = useState(0.45);
   const dragStateRef = useRef<DragState | null>(null);
   const [internalPosition, setInternalPosition] = useState<Position>({ x: 24, y: 24 });
   const resolvedPosition = position ?? internalPosition;
@@ -128,6 +133,30 @@ export default function FloatingToolbar({
     { label: "Export board", type: "export", disabled: true, dividerAfter: true },
     { label: "Settings (Ctrl+,)", type: "settings" },
   ];
+
+  // The shader's roundness is a fraction of half the panel's height, so derive it from the
+  // panel's CSS corner radius to keep the glow on the panel's edge at every toolbar size.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+
+    if (!panel) {
+      return;
+    }
+
+    const updateRoundness = () => {
+      const radius = parseFloat(getComputedStyle(panel).borderTopLeftRadius);
+      const height = panel.offsetHeight;
+
+      if (height > 0 && Number.isFinite(radius)) {
+        setPulseRoundness(Math.min(1, (2 * radius) / height));
+      }
+    };
+
+    updateRoundness();
+    const observer = new ResizeObserver(updateRoundness);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!isRecentMenuOpen) {
@@ -254,6 +283,25 @@ export default function FloatingToolbar({
         onPointerLeave={handlePointerUp}
         aria-label="Floating toolbar"
       >
+        {/* Animated glowing border behind the buttons; it draws only the edge, the rest is transparent. */}
+        <PulsingBorder
+          className="toolbar-pulse"
+          aria-hidden="true"
+          colorBack="#00000000"
+          colors={PULSE_COLORS}
+          roundness={pulseRoundness}
+          thickness={0.04}
+          softness={0.1}
+          intensity={0.2}
+          bloom={0.25}
+          spots={4}
+          spotSize={0.5}
+          pulse={0.25}
+          smoke={0.3}
+          smokeSize={0.6}
+          speed={1}
+          scale={1}
+        />
         <div
           className="toolbar-handle"
           data-drag-handle="true"

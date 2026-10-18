@@ -130,11 +130,14 @@ video {
 .floating-toolbar-shell--large { font-size: 20px; }
 
 .floating-toolbar {
+  position: relative;
+  /* Own stacking context, so the border layer (z-index -1) sits between the panel and its buttons. */
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 0.7em;
   padding: 0.45em 0.6em;
-  border-radius: 1.25em;
+  border-radius: 0.85em;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
   box-shadow: 0 22px 50px var(--panel-shadow);
@@ -142,15 +145,22 @@ video {
   -webkit-backdrop-filter: blur(18px);
 }
 
+.toolbar-pulse {
+  position: absolute;
+  z-index: -1;
+  /* Cover the panel's own 1px border too. */
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* The drag handle is a bare grip, no button chrome; its height matches the buttons. */
 .toolbar-handle {
-  width: 1.1em;
-  height: 2.8em;
+  width: 0.4em;
+  height: 2.6em;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.8em;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-  border: 1px solid rgba(148, 163, 184, 0.18);
   cursor: grab;
   touch-action: none;
 }
@@ -159,15 +169,13 @@ video {
   cursor: grabbing;
 }
 
+/* Two columns of square dots in the divider color, as tall as the dividers. Each 3px cell
+   colors only its top-left 1px quadrant, so the dots match the divider's 1px weight. */
 .toolbar-grip {
   display: block;
-  width: 0.28em;
-  height: 1.4em;
-  border-radius: 999px;
-  background: var(--handle-accent);
-  box-shadow:
-    0 -0.6em 0 var(--handle-accent),
-    0 0.6em 0 var(--handle-accent);
+  width: 4px;
+  height: 1.8em;
+  background: conic-gradient(at 1px 1px, transparent 75%, var(--panel-border) 0) 0 0 / 3px 3px;
 }
 
 .toolbar-button {
@@ -178,7 +186,7 @@ video {
   justify-content: center;
   padding: 0;
   border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 0.8em;
+  border-radius: 0.4em;
   background: var(--panel-secondary);
   color: var(--panel-text);
   transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;

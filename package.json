@@ -10,6 +10,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@paper-design/shaders-react": "^0.0.81",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "2.8.0",
     "@tauri-apps/plugin-opener": "^2",
