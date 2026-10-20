@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(cargo check)",
+      "Bash(cargo check *)",
+      "Bash(cargo test)",
+      "Bash(cargo test *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git tag)",
+      "Bash(git tag --list *)"
+    ],
+    "deny": [
+      "Edit(/MoodBoard App/APP design.md)",
+      "Edit(/MoodBoard App/AI prompt.md)",
+      "Edit(/MoodBoard App/MoodBoard.md)"
+    ]
+  }
+}
