@@ -13,8 +13,8 @@ the floating panel has the following buttons:
 | Command / tool           |     |
 | ------------------------ | --- |
 | Import image<br>         |     |
-| Link image               |     |
-| link a document          |     |
+| ~~Link image~~           |     |
+| ~~link a document~~      |     |
 | Add a Text box           |     |
 | Export board as an image |     |
 

@@ -12,7 +12,7 @@ Tick a box (`- [x]`) when something is done, and move it to the Changelog's **Un
 The goal: safe to use for real work, nothing in the toolbar that doesn't work, and it runs on all three systems.
 
 - [ ] **Undo and redo** (Ctrl+Z, Ctrl+Shift+Z), so a stray Delete can't lose work.
-- [ ] **No unfinished buttons.** For each of Export, Crop, Link image and Link document, either build it or hide it until it's ready.
+- [ ] **No unfinished buttons.** For Export and Crop, either build it or hide it until it's ready. (Link image and Link document were dropped and removed from the toolbar.)
 - [ ] **Always keep the aspect ratio** when resizing images (from the [Settings Panel](Settings%20Panel.md) notes).
 - [ ] **Windows and macOS builds,** each tested at least once (open, save, import, settings). Today only a Linux `.deb` is built.
 - [ ] Test the 0.9 settings dialog in the running app and fix what turns up.
@@ -24,7 +24,7 @@ Features from [APP design](APP%20design.md) and [Settings Panel](Settings%20Pane
 ### Board and editing
 - [ ] Export the board as an image (PNG/JPG, 1x/2x/4x, into the board's Export folder).
 - [ ] Crop images.
-- [ ] Link images and documents.
+- [x] ~~Link images and documents.~~ Dropped: importing already covers images, and copying large documents to show one part of them doesn't fit a moodboard.
 - [ ] Layer ordering (bring forward, send backward).
 - [ ] Change the style of an existing text box (font, size, colour, alignment).
 - [ ] Snap to grid or to other items.

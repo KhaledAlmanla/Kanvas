@@ -14,6 +14,9 @@ Planned work is in the [Roadmap](Roadmap.md). Detailed notes on each change are 
 - **Paste images from other apps.** Ctrl+V adds a copied image, such as a screenshot or an image copied in a browser, or image files copied in the file manager.
 - **Drag and drop image files** from a folder onto the board. They land where they are dropped.
 
+### Removed
+- **Link image and Link document buttons.** These greyed-out toolbar buttons are gone. The features are dropped: import, paste or drag and drop images instead.
+
 ## [0.9.0] - 2026-10-16
 
 First beta.
