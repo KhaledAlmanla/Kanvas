@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  Download,
   FileText,
   FolderOpen,
   FolderPlus,
@@ -35,7 +34,6 @@ type ToolbarAction = {
     | "import"
     | "text"
     | "theme"
-    | "export"
     | "settings";
   disabled?: boolean;
   dividerAfter?: boolean;
@@ -73,7 +71,6 @@ function ToolbarIcon({ type }: { type: ToolbarAction["type"] }) {
     import: Image,
     text: FileText,
     theme: SunMoon,
-    export: Download,
     settings: Settings,
   };
 
@@ -121,8 +118,8 @@ export default function FloatingToolbar({
     { label: "Save board as (Ctrl+Shift+S)", type: "save-as", dividerAfter: true },
     { label: "Import image", type: "import" },
     { label: "Add text box", type: "text" },
-    { label: "Theme", type: "theme" },
-    { label: "Export board", type: "export", disabled: true, dividerAfter: true },
+    // Export is hidden until it's built.
+    { label: "Theme", type: "theme", dividerAfter: true },
     { label: "Settings (Ctrl+,)", type: "settings" },
   ];
 

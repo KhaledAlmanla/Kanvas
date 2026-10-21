@@ -12,6 +12,8 @@ const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp", 
 /// Pasted images on a board that was never saved wait here until its first save copies them.
 const PASTED_IMAGES_DIR: &str = "Pasted images";
 const PASTED_IMAGE_NAME: &str = "Pasted image.png";
+/// Added to the board file's name for the copy of the previous save.
+const BACKUP_SUFFIX: &str = ".bak";
 
 fn to_message(error: impl std::fmt::Display) -> String {
     error.to_string()
@@ -88,9 +90,17 @@ fn write_atomically(path: &Path, contents: &str) -> Result<(), String> {
     fs::rename(&temp_path, path).map_err(to_message)
 }
 
+/// Keeps the previous save as `Board.kanvas.bak` next to the board, then writes the new one.
 #[tauri::command]
 fn write_board(board_path: String, contents: String) -> Result<(), String> {
-    write_atomically(Path::new(&board_path), &contents)
+    let path = Path::new(&board_path);
+    if path.is_file() {
+        let mut backup_name = path.file_name().ok_or("Invalid file path")?.to_os_string();
+        backup_name.push(BACKUP_SUFFIX);
+        fs::copy(path, path.with_file_name(backup_name)).map_err(to_message)?;
+    }
+
+    write_atomically(path, &contents)
 }
 
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -158,6 +168,18 @@ fn copy_image_to_board(board_path: String, source_path: String) -> Result<BoardI
         .and_then(|name| name.to_str())
         .ok_or_else(|| format!("Invalid image file name: {source_path}"))?
         .to_string();
+
+    // A missing file that belonged to this board keeps its place, so the board still saves
+    // and the image comes back if the file is put back.
+    if !source.exists() {
+        if source.parent() == Some(images_dir.as_path()) {
+            return Ok(BoardImageFile {
+                file: format!("{IMAGES_DIR}/{file_name}"),
+                path: source_path,
+            });
+        }
+        return Err(format!("The image file is missing: {source_path}"));
+    }
 
     // Compare canonical paths, but never hand them back: on Windows they carry a "\\?\" prefix.
     let canonical_images_dir = images_dir.canonicalize().map_err(to_message)?;
@@ -281,6 +303,17 @@ struct ClipboardContents {
     image_paths: Vec<String>,
 }
 
+/// Image files copied in the file manager, read in the system's own file-list format.
+fn copied_image_files() -> Vec<String> {
+    arboard::Clipboard::new()
+        .and_then(|mut clipboard| clipboard.get().file_list())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|path| is_image_file(path))
+        .map(|path| path_string(&path))
+        .collect()
+}
+
 /// Reads the system clipboard for pasting. A copied image is saved as a PNG: into the board's
 /// Images folder when the board has been saved, otherwise into the app's cache until the first save.
 #[tauri::command]
@@ -288,6 +321,11 @@ fn read_clipboard(app: AppHandle, board_path: Option<String>) -> Result<Clipboar
     let clipboard = app.clipboard();
     let text = clipboard.read_text().ok();
     let mut image_paths = text.as_deref().map(image_paths_in_text).unwrap_or_default();
+
+    // Files copied in Windows Explorer or macOS Finder aren't on the clipboard as text.
+    if image_paths.is_empty() {
+        image_paths = copied_image_files();
+    }
 
     if image_paths.is_empty() {
         if let Ok(image) = clipboard.read_image() {
@@ -427,6 +465,21 @@ mod tests {
         write_board(board_path.clone(), "{\"app\":\"kanvas\",\"version\":1}".into()).unwrap();
         assert_eq!(fs::read_to_string(&board_path).unwrap(), "{\"app\":\"kanvas\",\"version\":1}");
         assert!(!root.join("Board.kanvas.tmp").exists());
+        assert_eq!(fs::read_to_string(root.join("Board.kanvas.bak")).unwrap(), "{\"app\":\"kanvas\"}");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn missing_board_image_keeps_its_place() {
+        let root = temp_dir("missing");
+        let board_path = path_string(&root.join("Board.kanvas"));
+        let gone = path_string(&root.join(IMAGES_DIR).join("gone.png"));
+        let stored = copy_image_to_board(board_path.clone(), gone.clone()).unwrap();
+        assert_eq!(stored.file, "Images/gone.png");
+        assert_eq!(stored.path, gone);
+
+        let outside = path_string(&root.join("elsewhere.png"));
+        assert!(copy_image_to_board(board_path, outside).is_err());
         fs::remove_dir_all(root).unwrap();
     }
 }

@@ -153,7 +153,7 @@ flowchart TD
 
 ## 5. Each file, in plain words
 
-### `src/components/C_canvas.tsx` (the brain, about 650 lines)
+### `src/components/C_canvas.tsx` (the brain, about 1,100 lines)
 Owns everything about the current board. Read it top to bottom in this order:
 
 1. **Constants**: `MIN_ZOOM`, `MAX_ZOOM`, `DRAG_THRESHOLD` (pixels before a press counts as a drag).
@@ -167,19 +167,21 @@ Owns everything about the current board. Read it top to bottom in this order:
    - `toolbarPosition`: where the toolbar sits.
    - `boardPath`: where the board is saved (`null` if never saved).
    - `savedSnapshot`: a copy of the board as last saved; comparing it with the current board gives `isDirty` (unsaved changes).
-4. **Adding things**: `handleImport` (pick images → add image items), `handleAddText`.
-5. **Item callbacks** passed down to every item: `handleItemPointerDown` (select + start move), `handleResizeStart`, `handleItemContextMenu`, `handleItemDelete`, `handleTextChange`.
-6. **Canvas mouse**: `handleCanvasPointerDown` (middle button = pan, left on empty space = box-select), `handleCanvasContextMenu` (right-click moves the toolbar to the cursor).
-7. **The drag engine**: one effect listening to `pointermove` / `pointerup` for the whole window. It looks at the current `Interaction` and moves, resizes, pans or box-selects. Movement is divided by zoom so items stay under the cursor.
-8. **Wheel zoom**: zooms around the mouse pointer, within the zoom limits from settings.
-9. **File actions**: `applyBoard`, `writeBoardTo`, `saveBoard`, `saveBoardAs`, `resolveUnsavedChanges` (the Save / Don't Save / Cancel prompt), `newBoard`, `openBoard`, `runFileAction` (stops two dialogs from opening at once).
-10. **Keyboard**: Delete/Backspace, Ctrl+S, Ctrl+Shift+S, Ctrl+O, Ctrl+N, Ctrl+, (settings).
-11. **Window**: the close-window prompt, and the window title (`• MyBoard — Kanvas` when unsaved).
-12. **Startup**: once settings are loaded, puts the toolbar back where it was and (if enabled) reopens the last board.
-13. **What it draws**: the dot grid, every `C_boardItem`, the selection box, the `FloatingToolbar`, and `C_settingsDialog` when open. The colours come from `getCanvasVariables` (in `settings.ts`) as CSS variables on the canvas.
+   - `historyRef`: the undo history. `past` and `future` are earlier and undone copies of `items` (up to 100). Panning, zooming and settings are not part of it.
+4. **Undo and redo**: `recordUndoStep()` is called **just before** any change to `items` and saves the board as it was. A whole drag or resize is one step (recorded on mouse release); typing in one text box is one step until you click elsewhere. `undo` / `redo` swap copies between `past` and `future`. Opening or creating a board clears the history. **When you add a new way to change items, call `recordUndoStep()` first.**
+5. **Adding things**: `handleImport` (pick images → add image items), `handleAddText`.
+6. **Item callbacks** passed down to every item: `handleItemPointerDown` (select + start move), `handleResizeStart`, `handleItemContextMenu`, `handleItemDelete`, `handleTextChange`.
+7. **Canvas mouse**: `handleCanvasPointerDown` (middle button = pan, left on empty space = box-select), `handleCanvasContextMenu` (right-click moves the toolbar to the cursor).
+8. **The drag engine**: one effect listening to `pointermove` / `pointerup` for the whole window. It looks at the current `Interaction` and moves, resizes, pans or box-selects. Movement is divided by zoom so items stay under the cursor. Images resize with `resizeRectKeepingRatio`, so they always keep their shape; text boxes use `resizeRect`.
+9. **Wheel zoom**: zooms around the mouse pointer, within the zoom limits from settings.
+10. **File actions**: `applyBoard`, `writeBoardTo`, `saveBoard`, `saveBoardAs`, `resolveUnsavedChanges` (the Save / Don't Save / Cancel prompt), `newBoard`, `openBoard`, `runFileAction` (stops two dialogs from opening at once).
+11. **Keyboard**: Delete/Backspace, Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (undo, redo), Ctrl+C / X / V, Ctrl+S, Ctrl+Shift+S, Ctrl+O, Ctrl+N, Ctrl+, (settings).
+12. **Window**: the close-window prompt, and the window title (`• MyBoard — Kanvas` when unsaved).
+13. **Startup**: once settings are loaded, puts the toolbar back where it was and (if enabled) reopens the last board.
+14. **What it draws**: the dot grid, every `C_boardItem`, the selection box, the `FloatingToolbar`, and `C_settingsDialog` when open. The colours come from `getCanvasVariables` (in `settings.ts`) as CSS variables on the canvas.
 
 ### `src/components/C_boardItem.tsx` (one item)
-Draws a single image or text box at its position: the frame, the picture or text, 8 resize handles (when selected), and the option bar beside it (delete; edit for text; crop is disabled until built). It **does not change data itself**. It calls the canvas's callbacks (`onDelete`, `onTextChange`, …). It remembers one thing locally: `isEditing` (whether the text box is in typing mode).
+Draws a single image or text box at its position: the frame, the picture or text, 8 resize handles (when selected), and the option bar beside it (delete; edit for text; crop is hidden until built). If an image file can't be loaded (deleted or renamed outside Kanvas), it shows an "Image missing" box with the file name instead. It **does not change data itself**. It calls the canvas's callbacks (`onDelete`, `onTextChange`, …). It remembers two things locally: `isEditing` (whether the text box is in typing mode) and `missingPath` (the image file that failed to load).
 
 ### `src/components/C_floatingToolbar.tsx` (the toolbar)
 - `toolbarItems`: **the list of buttons**: label (tooltip), `type`, `disabled`, `dividerAfter`.
@@ -188,7 +190,7 @@ Draws a single image or text box at its position: the frame, the picture or text
 - It also handles dragging the toolbar by its handle.
 
 ### `src/lib/boardItems.ts` (what an item is)
-Defines `BoardImageItem`, `BoardTextItem` and `BoardItem` (either one), the minimum sizes (`MIN_ITEM_SIZE`), `createItemId()`, and two maths helpers: `resizeRect` (resizing from an edge or corner) and `rectsIntersect` (is an item inside the selection box?).
+Defines `BoardImageItem`, `BoardTextItem` and `BoardItem` (either one), the minimum sizes (`MIN_ITEM_SIZE`), `createItemId()`, and three maths helpers: `resizeRect` (resizing from an edge or corner), `resizeRectKeepingRatio` (the same, keeping the shape, used for images) and `rectsIntersect` (is an item inside the selection box?).
 
 ### `src/lib/boardFile.ts` (saving and loading)
 - `writeBoardFile`: copies each image into the board's `Images/` folder (through Rust), then writes the `.kanvas` file.
@@ -215,8 +217,9 @@ Defines `BoardImageItem`, `BoardTextItem` and `BoardItem` (either one), the mini
 |---|---|---|
 | `prepare_board_path` | `pickBoardSaveLocation` | Turns `~/Boards/MyBoard.kanvas` into `~/Boards/MyBoard/MyBoard.kanvas` and creates the folder plus `Images/`. |
 | `read_board` | `readBoardFile` | Reads the `.kanvas` file; lets the window display that board's images. |
-| `write_board` | `writeBoardFile` | Writes the `.kanvas` file safely (temp file first, then rename). |
-| `copy_image_to_board` | `writeBoardFile`, `copyImageIntoBoard` | Copies an image into `Images/` with a unique name, unless it's already there. |
+| `write_board` | `writeBoardFile` | Copies the previous save to `MyBoard.kanvas.bak`, then writes the `.kanvas` file safely (temp file first, then rename). |
+| `copy_image_to_board` | `writeBoardFile`, `copyImageIntoBoard` | Copies an image into `Images/` with a unique name, unless it's already there. A missing file that was in `Images/` keeps its entry, so the board still saves. |
+| `read_clipboard` | `readClipboard` | For Ctrl+V: reads copied image file paths (as text on Linux, as a file list from Explorer or Finder), or saves a copied image as a PNG. |
 | `load_settings` / `save_settings` | `loadSettings` / `saveSettings` | Read and write `settings.json` in the app's config folder. |
 
 At the bottom, `mod tests` holds automated tests (`cargo test` in `src-tauri/`).
@@ -241,13 +244,14 @@ At the bottom, `mod tests` holds automated tests (`cargo test` in `src-tauri/`).
 | This board's theme override and background | `boardSettings` state | `MyBoard.kanvas` → `settings` |
 | Pan and zoom | `view` state | `MyBoard.kanvas` → `view` |
 | App settings, recent boards, last board, toolbar position | `settings` (from `useSettings`) | `settings.json` in the app's config folder: `~/.config/com.krr.kanvas/` on Linux, `%APPDATA%\com.krr.kanvas\` on Windows, `~/Library/Application Support/com.krr.kanvas/` on macOS |
-| Selection | State in `C_canvas` | **Not saved** |
+| Selection, undo history | State in `C_canvas` | **Not saved** |
 
 A board on disk:
 
 ```
 MyBoard/
 ├── MyBoard.kanvas
+├── MyBoard.kanvas.bak     ← the previous save, written on every save
 └── Images/
     ├── photo.png
     └── photo (2).png      ← same name from a different folder gets a number
@@ -282,7 +286,7 @@ Image paths are **relative** (`Images/photo.png`), so the board folder can be mo
 2. It updates `selectedIds` and records a `move` interaction (start position of every selected item).
 3. Each mouse move → the drag engine computes the distance ÷ zoom and calls `setItems(...)` with new positions.
 4. React redraws only the items that moved.
-5. Mouse release → the interaction is cleared.
+5. Mouse release → if anything moved, the board as it was before the drag becomes one undo step; the interaction is cleared.
 
 ### Saving (Ctrl+S)
 

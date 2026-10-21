@@ -3901,6 +3901,7 @@ dependencies = [
 name = "the-moodboard"
 version = "0.9.0"
 dependencies = [
+ "arboard",
  "png 0.17.16",
  "serde",
  "serde_json",

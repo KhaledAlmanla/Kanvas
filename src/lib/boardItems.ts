@@ -87,3 +87,40 @@ export function resizeRect(
 
   return { x, y, width, height };
 }
+
+/**
+ * Resizes a rect like resizeRect, but keeps its width-to-height ratio. Corners keep the opposite
+ * corner in place; edges keep the opposite edge in place and grow evenly on both sides.
+ */
+export function resizeRectKeepingRatio(
+  start: Rect,
+  mode: ResizeMode,
+  deltaX: number,
+  deltaY: number,
+  minSize: { width: number; height: number },
+): Rect {
+  const widthScale = (start.width + (mode.includes("e") ? deltaX : mode.includes("w") ? -deltaX : 0)) / start.width;
+  const heightScale = (start.height + (mode.includes("s") ? deltaY : mode.includes("n") ? -deltaY : 0)) / start.height;
+  const isHorizontal = mode === "e" || mode === "w";
+  const isVertical = mode === "n" || mode === "s";
+  // On a corner, follow whichever direction the pointer moved further.
+  const wantedScale = isHorizontal ? widthScale : isVertical ? heightScale : Math.max(widthScale, heightScale);
+  // Only the long side has to reach the minimum, so very wide or tall images can still shrink.
+  const minScale = Math.min(minSize.width / start.width, minSize.height / start.height);
+  const scale = Math.max(wantedScale, minScale);
+
+  const width = start.width * scale;
+  const height = start.height * scale;
+  const x = mode.includes("w")
+    ? start.x + start.width - width
+    : mode.includes("e")
+      ? start.x
+      : start.x + (start.width - width) / 2;
+  const y = mode.includes("n")
+    ? start.y + start.height - height
+    : mode.includes("s")
+      ? start.y
+      : start.y + (start.height - height) / 2;
+
+  return { x, y, width, height };
+}

@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Crop, PencilLine, Trash } from "lucide-react";
+import { ImageOff, PencilLine, Trash } from "lucide-react";
 import { FONT_STACKS, RESIZE_MODES, type BoardItem, type ResizeMode, type TextStyle } from "../lib/boardItems";
 
 const JUSTIFY_BY_ALIGN: Record<TextStyle["align"], string> = { left: "flex-start", center: "center", right: "flex-end" };
@@ -40,6 +40,10 @@ function C_boardItem({
   onTextChange,
 }: C_boardItemProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const imagePath = item.type === "image" ? item.path : null;
+  /** The image file that failed to load, e.g. because it was deleted or renamed outside Kanvas. */
+  const [missingPath, setMissingPath] = useState<string | null>(null);
+  const isImageMissing = imagePath !== null && missingPath === imagePath;
   const label = item.type === "image" ? "image" : "text box";
 
   useEffect(() => {
@@ -73,12 +77,21 @@ function C_boardItem({
     >
       <div className={`board-${item.type}-frame`}>
         {item.type === "image" ? (
-          <img
-            src={convertFileSrc(item.path)}
-            alt={item.name}
-            className="board-image-element"
-            draggable={false}
-          />
+          isImageMissing ? (
+            <div className="board-image-missing" title={item.path}>
+              <ImageOff size={22} strokeWidth={1.8} aria-hidden="true" />
+              <span>Image missing</span>
+              <span className="board-image-missing-name">{item.name}</span>
+            </div>
+          ) : (
+            <img
+              src={convertFileSrc(item.path)}
+              alt={item.name}
+              className="board-image-element"
+              draggable={false}
+              onError={() => setMissingPath(item.path)}
+            />
+          )
         ) : isEditing ? (
           <textarea
             className="board-textarea"
@@ -117,11 +130,8 @@ function C_boardItem({
           >
             <Trash size={14} strokeWidth={2} />
           </button>
-          {item.type === "image" ? (
-            <button type="button" className="option-button crop" aria-label="Crop image" title="Crop (coming soon)" disabled>
-              <Crop size={14} strokeWidth={2} />
-            </button>
-          ) : (
+          {/* Crop is hidden until it's built. */}
+          {item.type === "text" && (
             <button
               type="button"
               className="option-button crop"

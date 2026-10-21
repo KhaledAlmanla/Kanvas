@@ -13,9 +13,17 @@ Planned work is in the [Roadmap](Roadmap.md). Detailed notes on each change are 
 - **Copy, cut and paste** (Ctrl+C, Ctrl+X, Ctrl+V). Selected images and text boxes are pasted at the mouse pointer with their layout kept, also into another board.
 - **Paste images from other apps.** Ctrl+V adds a copied image, such as a screenshot or an image copied in a browser, or image files copied in the file manager.
 - **Drag and drop image files** from a folder onto the board. They land where they are dropped.
+- **Undo and redo** (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y), up to 100 steps. A whole drag, resize or text edit is one step.
+- **Backup on save.** Each save keeps the previous version next to the board as `MyBoard.kanvas.bak`.
+- **Paste image files copied in Windows Explorer or macOS Finder.**
+
+### Changed
+- **Images keep their shape** when resized, from any edge or corner.
+- **Missing images are shown** as an "Image missing" box with the file name, and the board can still be saved.
 
 ### Removed
 - **Link image and Link document buttons.** These greyed-out toolbar buttons are gone. The features are dropped: import, paste or drag and drop images instead.
+- **Export and Crop buttons** are hidden until they work.
 
 ## [0.9.0] - 2026-10-16
 

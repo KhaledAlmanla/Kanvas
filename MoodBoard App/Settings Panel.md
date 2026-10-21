@@ -17,9 +17,9 @@ Related: [[APP design]] · [[Codebase Guide]] (section 8, Recipe D, shows where 
 - Keyboard shortcuts list and About (version, file format, GitHub link).
 - Images are now copied into the board's Images folder on import (on first save for a never-saved board). Not a setting.
 
-**Shown as "coming soon" in the dialog:** paper texture, snapping, clean up unused images, autosave, backup, export options.
+**Shown as "coming soon" in the dialog:** paper texture, snapping, clean up unused images, autosave, export options.
 
-**Not done yet:** always keep aspect ratio when resizing (your note in section 4).
+**Done since:** images always keep their aspect ratio when resized (your note in section 4), and each save keeps a backup (`.kanvas.bak`). Neither is a setting; the Images & saving section mentions both.
 
 ## Opening and closing
 - A gear button at the end of the floating toolbar, plus Ctrl+, (Cmd+, on macOS).

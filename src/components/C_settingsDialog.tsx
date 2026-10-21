@@ -47,6 +47,8 @@ const SHORTCUTS: [string, string][] = [
   ["Ctrl+Shift+S", "Save board as"],
   ["Ctrl+,", "Open or close settings"],
   ["Delete / Backspace", "Delete selected items"],
+  ["Ctrl+Z", "Undo"],
+  ["Ctrl+Shift+Z / Ctrl+Y", "Redo"],
   ["Ctrl+C / Ctrl+X", "Copy or cut selected items"],
   ["Ctrl+V", "Paste items, or images and image files copied in other apps"],
   ["Drop image files", "Add them where they are dropped"],
@@ -464,11 +466,15 @@ export default function C_settingsDialog({
               Imported images are copied into the board's Images folder straight away. For a board that has never been
               saved, they are copied on its first save.
             </p>
+            <p className="settings-note">
+              Each save keeps the previous version next to the board as a backup (MyBoard.kanvas.bak). To go back to
+              it, rename it to MyBoard.kanvas.
+            </p>
+            <p className="settings-note">Images always keep their shape when resized.</p>
             <ComingSoon
               items={[
                 "Clean up unused images in the Images folder",
                 "Autosave every 1, 5 or 10 minutes",
-                "Keep a backup (.kanvas.bak) of the previous save",
               ]}
             />
           </>

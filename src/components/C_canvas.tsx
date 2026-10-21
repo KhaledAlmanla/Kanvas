@@ -32,6 +32,7 @@ import {
   createItemId,
   rectsIntersect,
   resizeRect,
+  resizeRectKeepingRatio,
   type BoardImageItem,
   type BoardItem,
   type Rect,
@@ -46,6 +47,8 @@ const DEFAULT_VIEW: BoardView = { x: 0, y: 0, zoom: 1 };
 const DRAG_THRESHOLD = 4;
 /** Written to the system clipboard when board items are copied, so a paste can tell they are still the latest copy. */
 const CLIPBOARD_MARKER_PREFIX = "kanvas-items:";
+/** How many steps Ctrl+Z can go back. */
+const UNDO_LIMIT = 100;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -69,11 +72,23 @@ type Interaction =
       kind: "move";
       pointer: Point;
       startPositions: Map<string, Point>;
+      /** The board before the drag, for undo. */
+      startItems: BoardItem[];
       clickedId: string;
       isAdditive: boolean;
       hasMoved: boolean;
     }
-  | { kind: "resize"; pointer: Point; id: string; start: Rect; mode: ResizeMode; minSize: { width: number; height: number } }
+  | {
+      kind: "resize";
+      pointer: Point;
+      id: string;
+      start: Rect;
+      mode: ResizeMode;
+      minSize: { width: number; height: number };
+      /** Images always keep their shape. */
+      keepRatio: boolean;
+      startItems: BoardItem[];
+    }
   | { kind: "marquee"; pointer: Point; origin: Point; baseSelection: string[]; hasMoved: boolean };
 
 export default function C_canvas() {
@@ -101,6 +116,12 @@ export default function C_canvas() {
   /** Board items copied with Ctrl+C, and the marker written to the system clipboard with them. */
   const boardClipboardRef = useRef<{ marker: string; items: BoardItem[] } | null>(null);
   const isFileActionRunningRef = useRef(false);
+  /** Earlier and undone versions of the board's items, for Ctrl+Z and Ctrl+Shift+Z. */
+  const historyRef = useRef<{ past: BoardItem[][]; future: BoardItem[][] }>({ past: [], future: [] });
+  /** The text box being typed in since the last undo step, so one editing session is one step. */
+  const textEditIdRef = useRef<string | null>(null);
+  /** Changes whenever a board is opened or created, so items (and their image files) load afresh. */
+  const [boardLoadId, setBoardLoadId] = useState(0);
 
   // Pointer handlers are registered once and read the latest state through these refs.
   const itemsRef = useRef(items);
@@ -142,6 +163,46 @@ export default function C_canvas() {
       return nextBoardPath ? updateRecentBoards(withLastBoard, nextBoardPath) : withLastBoard;
     });
   };
+
+  // History helpers only touch refs and state setters, so callbacks registered once can use them.
+  /** Call before changing the items: saves the board as it is now (or as given) as one undo step. */
+  const recordUndoStep = useCallback((before: BoardItem[] = itemsRef.current) => {
+    const history = historyRef.current;
+    history.past.push(before);
+    if (history.past.length > UNDO_LIMIT) {
+      history.past.shift();
+    }
+    history.future = [];
+    textEditIdRef.current = null;
+  }, []);
+
+  const restoreItems = useCallback((next: BoardItem[]) => {
+    textEditIdRef.current = null;
+    // Updated right away so a quick second Ctrl+Z steps from here, not from the last render.
+    itemsRef.current = next;
+    setItems(next);
+    const ids = new Set(next.map((item) => item.id));
+    setSelectedIds((current) => current.filter((id) => ids.has(id)));
+    setOptionsItemId((current) => (current && ids.has(current) ? current : null));
+  }, []);
+
+  const undo = useCallback(() => {
+    const history = historyRef.current;
+    const previous = history.past.pop();
+    if (previous) {
+      history.future.push(itemsRef.current);
+      restoreItems(previous);
+    }
+  }, [restoreItems]);
+
+  const redo = useCallback(() => {
+    const history = historyRef.current;
+    const next = history.future.pop();
+    if (next) {
+      history.past.push(itemsRef.current);
+      restoreItems(next);
+    }
+  }, [restoreItems]);
 
   const getBoardPoint = (clientX: number, clientY: number): Point | null => {
     const canvasRect = canvasRef.current?.getBoundingClientRect();
@@ -226,6 +287,7 @@ export default function C_canvas() {
       }
     }
 
+    recordUndoStep();
     setItems((current) => [...current, ...resolvedImages]);
     return resolvedImages.map((image) => image.id);
   };
@@ -256,6 +318,7 @@ export default function C_canvas() {
   const cutSelection = () => {
     if (copySelection()) {
       const selected = new Set(selectedIdsRef.current);
+      recordUndoStep();
       setItems((current) => current.filter((item) => !selected.has(item.id)));
       setSelectedIds([]);
     }
@@ -272,6 +335,7 @@ export default function C_canvas() {
     const offsetY = center ? center.y - (top + bottom) / 2 : 24;
 
     const pasted = copiedItems.map((item) => ({ ...item, id: createItemId(), x: item.x + offsetX, y: item.y + offsetY }));
+    recordUndoStep();
     setItems((current) => [...current, ...pasted]);
     setSelectedIds(pasted.map((item) => item.id));
   };
@@ -313,6 +377,7 @@ export default function C_canvas() {
   };
 
   const handleAddText = () => {
+    recordUndoStep();
     setItems((current) => [
       ...current,
       {
@@ -337,6 +402,7 @@ export default function C_canvas() {
     event.preventDefault();
     event.stopPropagation();
     setOptionsItemId((current) => (current === id ? current : null));
+    textEditIdRef.current = null;
 
     const isAdditive = event.ctrlKey || event.metaKey;
     const current = selectedIdsRef.current;
@@ -367,6 +433,7 @@ export default function C_canvas() {
       kind: "move",
       pointer: { x: event.clientX, y: event.clientY },
       startPositions,
+      startItems: itemsRef.current,
       clickedId: id,
       isAdditive,
       hasMoved: false,
@@ -394,6 +461,8 @@ export default function C_canvas() {
       start: { x: item.x, y: item.y, width: item.width, height: item.height },
       mode,
       minSize: MIN_ITEM_SIZE[item.type],
+      keepRatio: item.type === "image",
+      startItems: itemsRef.current,
     };
   }, []);
 
@@ -403,12 +472,18 @@ export default function C_canvas() {
   }, []);
 
   const handleItemDelete = useCallback((id: string) => {
+    recordUndoStep();
     setItems((current) => current.filter((item) => item.id !== id));
     setSelectedIds((current) => current.filter((selectedId) => selectedId !== id));
     setOptionsItemId((current) => (current === id ? null : current));
   }, []);
 
   const handleTextChange = useCallback((id: string, text: string) => {
+    // The first keystroke in a text box starts an undo step; the rest of that editing joins it.
+    if (textEditIdRef.current !== id) {
+      recordUndoStep();
+      textEditIdRef.current = id;
+    }
     setItems((current) => current.map((item) => (item.id === id && item.type === "text" ? { ...item, text } : item)));
   }, []);
 
@@ -435,6 +510,7 @@ export default function C_canvas() {
 
     event.preventDefault();
     setOptionsItemId(null);
+    textEditIdRef.current = null;
 
     const origin = getBoardPoint(event.clientX, event.clientY);
     if (!origin) {
@@ -526,8 +602,8 @@ export default function C_canvas() {
         }
 
         case "resize": {
-          const { id, start, mode, minSize } = interaction;
-          const next = resizeRect(start, mode, deltaX, deltaY, minSize);
+          const { id, start, mode, minSize, keepRatio } = interaction;
+          const next = (keepRatio ? resizeRectKeepingRatio : resizeRect)(start, mode, deltaX, deltaY, minSize);
           setItems((current) => current.map((item) => (item.id === id ? { ...item, ...next } : item)));
           break;
         }
@@ -565,6 +641,11 @@ export default function C_canvas() {
       // A plain click on an item of a multi-selection selects just that item.
       if (interaction?.kind === "move" && !interaction.hasMoved && !interaction.isAdditive) {
         setSelectedIds([interaction.clickedId]);
+      }
+
+      // A finished drag or resize is one undo step.
+      if ((interaction?.kind === "move" || interaction?.kind === "resize") && itemsRef.current !== interaction.startItems) {
+        recordUndoStep(interaction.startItems);
       }
 
       interactionRef.current = null;
@@ -629,6 +710,9 @@ export default function C_canvas() {
     setBoardPath(nextBoardPath);
     setSavedSnapshot(getBoardSnapshot(board));
     rememberBoard(nextBoardPath);
+    historyRef.current = { past: [], future: [] };
+    textEditIdRef.current = null;
+    setBoardLoadId((current) => current + 1);
   };
 
   const writeBoardTo = async (targetPath: string) => {
@@ -650,6 +734,24 @@ export default function C_canvas() {
           return savedPath ? { ...item, path: savedPath } : item;
         }),
       );
+
+      // Undo steps also point at the copies, so undoing after a save doesn't bring back paths outside the board.
+      const savedPathBySource = new Map<string, string>();
+      board.items.forEach((item, index) => {
+        const saved = savedItems[index];
+        if (item.type === "image" && saved?.type === "image") {
+          savedPathBySource.set(item.path, saved.path);
+        }
+      });
+      const toSavedPaths = (steps: BoardItem[][]) =>
+        steps.map((stepItems) =>
+          stepItems.map((item) => {
+            const savedPath = item.type === "image" ? savedPathBySource.get(item.path) : undefined;
+            return savedPath ? { ...item, path: savedPath } : item;
+          }),
+        );
+      const history = historyRef.current;
+      historyRef.current = { past: toSavedPaths(history.past), future: toSavedPaths(history.future) };
       setBoardPath(targetPath);
       setSavedSnapshot(getBoardSnapshot({ settings: boardSettings, items: savedItems }));
       rememberBoard(targetPath);
@@ -727,8 +829,8 @@ export default function C_canvas() {
   // Window-level listeners are registered once, so they read the latest actions through this ref.
   const fileActionsRef = useRef({ saveBoard, saveBoardAs, newBoard, openBoard, resolveUnsavedChanges, runFileAction });
   fileActionsRef.current = { saveBoard, saveBoardAs, newBoard, openBoard, resolveUnsavedChanges, runFileAction };
-  const editActionsRef = useRef({ copySelection, cutSelection, paste, dropFiles });
-  editActionsRef.current = { copySelection, cutSelection, paste, dropFiles };
+  const editActionsRef = useRef({ copySelection, cutSelection, paste, dropFiles, undo, redo });
+  editActionsRef.current = { copySelection, cutSelection, paste, dropFiles, undo, redo };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -746,6 +848,7 @@ export default function C_canvas() {
         const selected = new Set(selectedIdsRef.current);
         if (selected.size > 0) {
           event.preventDefault();
+          recordUndoStep();
           setItems((current) => current.filter((item) => !selected.has(item.id)));
           setSelectedIds([]);
         }
@@ -756,8 +859,19 @@ export default function C_canvas() {
         return;
       }
 
-      // Copy, cut and paste of board items; inside text boxes and the settings dialog they edit text as usual.
+      // Copy, cut, paste, undo and redo of board items; inside text boxes and the settings dialog they edit text as usual.
       const editKey = event.key.toLowerCase();
+      if ((editKey === "z" || editKey === "y") && !isTyping && !isSettingsOpenRef.current) {
+        event.preventDefault();
+        const { undo, redo } = editActionsRef.current;
+        if (editKey === "y" || event.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        return;
+      }
+
       if ((editKey === "c" || editKey === "x" || editKey === "v") && !isTyping && !isSettingsOpenRef.current) {
         event.preventDefault();
         const { copySelection, cutSelection, paste } = editActionsRef.current;
@@ -909,7 +1023,7 @@ export default function C_canvas() {
       <div className="moodboard-canvas-content" style={{ transform: contentTransform }}>
         {items.map((item) => (
           <C_boardItem
-            key={item.id}
+            key={`${boardLoadId}:${item.id}`}
             item={item}
             isSelected={selectedIdSet.has(item.id)}
             isOptionsOpen={optionsItemId === item.id}

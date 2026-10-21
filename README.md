@@ -9,9 +9,10 @@
 
 ## What you can do
 
-- Import images and add text notes.
+- Import images, paste them from other apps or drag them in from a folder, and add text notes.
 - Move, resize and select several items at once; pan and zoom around the board.
-- Save each board as a folder: a `.kanvas` file plus copies of its images, so nothing breaks if the originals move.
+- Undo and redo (Ctrl+Z, Ctrl+Shift+Z), and copy, cut and paste items between boards.
+- Save each board as a folder: a `.kanvas` file plus copies of its images, so nothing breaks if the originals move. Each save keeps the previous one as a backup.
 - Pick a dark, light or system theme, and customise colours, the grid, the toolbar and text defaults.
 - Reopen recent boards from the toolbar.
 
@@ -26,9 +27,20 @@ sudo apt remove kanvas                      # uninstall
 
 Windows and macOS versions are planned for 1.0. See all [releases](https://github.com/KhaledAlmanla/Kanvas/releases).
 
+### Opening Kanvas for the first time on Windows or macOS
+
+Kanvas is free and isn't signed with a paid developer certificate, so Windows and macOS warn you the first time you open it. This is expected.
+
+- **Windows:** if "Windows protected your PC" appears, click **More info**, then **Run anyway**.
+- **macOS:** open Kanvas once; macOS will refuse. Then go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to the Kanvas message. If macOS says Kanvas "is damaged", move it to Applications and run this in Terminal, then open it again:
+
+  ```bash
+  xattr -cr /Applications/Kanvas.app
+  ```
+
 ## Status
 
-**Current: 0.9.0 (beta).** **Next: 1.0:** undo/redo, copy/paste and drag-and-drop for images, no unfinished toolbar buttons, and Windows and macOS builds.
+**Current: 0.9.0 (beta).** **Next: 1.0:** Windows and macOS builds, and testing on all three systems.
 
 - [Changelog](MoodBoard%20App/CHANGELOG.md): what changed in each version
 - [Roadmap](MoodBoard%20App/Roadmap.md): what's planned
