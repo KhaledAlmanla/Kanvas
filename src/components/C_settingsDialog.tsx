@@ -52,11 +52,14 @@ const SHORTCUTS: [string, string][] = [
   ["Ctrl+C / Ctrl+X", "Copy or cut selected items"],
   ["Ctrl+V", "Paste items, or images and image files copied in other apps"],
   ["Drop image files", "Add them where they are dropped"],
-  ["Esc", "Close settings"],
+  ["F5", "Look again for missing images"],
+  ["Esc", "Close settings, or finish cropping"],
   ["Click", "Select an item"],
   ["Ctrl+click", "Add or remove an item from the selection"],
   ["Drag on empty canvas", "Box-select (hold Ctrl to add to the selection)"],
   ["Double-click a text box", "Edit its text"],
+  ["Shift+drag an edge or corner", "Resize, keeping the shape"],
+  ["Double-click an image", "Crop mode: drag the edges to crop, drag inside to slide; Enter or Esc to finish"],
   ["Right-click an item", "Show its option bar"],
   ["Right-click the canvas", "Move the toolbar to the pointer"],
   ["Middle-drag", "Pan the board"],
@@ -470,7 +473,10 @@ export default function C_settingsDialog({
               Each save keeps the previous version next to the board as a backup (MyBoard.kanvas.bak). To go back to
               it, rename it to MyBoard.kanvas.
             </p>
-            <p className="settings-note">Images always keep their shape when resized.</p>
+            <p className="settings-note">
+              Drag an image's edge or corner to resize it (hold Shift to keep its shape). Double-click an image to crop
+              it: drag the frame's edges to crop, and drag inside to slide the picture.
+            </p>
             <ComingSoon
               items={[
                 "Clean up unused images in the Images folder",

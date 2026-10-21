@@ -16,14 +16,16 @@ Planned work is in the [Roadmap](Roadmap.md). Detailed notes on each change are 
 - **Undo and redo** (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y), up to 100 steps. A whole drag, resize or text edit is one step.
 - **Backup on save.** Each save keeps the previous version next to the board as `MyBoard.kanvas.bak`.
 - **Paste image files copied in Windows Explorer or macOS Finder.**
+- **Crop images,** like a frame in InDesign. Double-click an image (or click Crop in its option bar): the whole picture shows faded around the frame. Drag the frame's edges to crop, and drag inside to slide the picture. Enter, Esc or a click outside finishes. Reset shows the whole picture again.
+- **Shift+drag** an edge or corner to resize an image or text box, keeping its shape.
+- **F5** looks again for missing images, for example after putting a file back.
 
 ### Changed
-- **Images keep their shape** when resized, from any edge or corner.
 - **Missing images are shown** as an "Image missing" box with the file name, and the board can still be saved.
 
 ### Removed
 - **Link image and Link document buttons.** These greyed-out toolbar buttons are gone. The features are dropped: import, paste or drag and drop images instead.
-- **Export and Crop buttons** are hidden until they work.
+- **Export button** is hidden until it works.
 
 ## [0.9.0] - 2026-10-16
 

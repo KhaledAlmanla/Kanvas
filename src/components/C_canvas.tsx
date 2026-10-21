@@ -28,15 +28,22 @@ import {
   type ClipboardContents,
 } from "../lib/boardFile";
 import {
+  FULL_CROP,
   MIN_ITEM_SIZE,
   createItemId,
+  cropFrame,
+  getCoverCrop,
+  getPictureRect,
   rectsIntersect,
   resizeRect,
   resizeRectKeepingRatio,
+  slidePicture,
   type BoardImageItem,
   type BoardItem,
+  type ImageCrop,
   type Rect,
   type ResizeMode,
+  type Size,
 } from "../lib/boardItems";
 import { getCanvasVariables, updateRecentBoards, type Settings, type ThemeMode } from "../lib/settings";
 import { useSettings, useSystemTheme } from "../lib/useSettings";
@@ -85,10 +92,13 @@ type Interaction =
       start: Rect;
       mode: ResizeMode;
       minSize: { width: number; height: number };
-      /** Images always keep their shape. */
-      keepRatio: boolean;
+      /** An image's crop, kept while resizing. Null for text boxes (and missing images). */
+      crop: ImageCrop | null;
+      /** In crop mode, dragging the frame crops the picture instead of resizing it. */
+      isCropping: boolean;
       startItems: BoardItem[];
     }
+  | { kind: "slide"; pointer: Point; id: string; frame: Rect; crop: ImageCrop; startItems: BoardItem[] }
   | { kind: "marquee"; pointer: Point; origin: Point; baseSelection: string[]; hasMoved: boolean };
 
 export default function C_canvas() {
@@ -122,6 +132,14 @@ export default function C_canvas() {
   const textEditIdRef = useRef<string | null>(null);
   /** Changes whenever a board is opened or created, so items (and their image files) load afresh. */
   const [boardLoadId, setBoardLoadId] = useState(0);
+  /** Goes up with F5, so images whose files were missing are looked for again. */
+  const [imageRefreshId, setImageRefreshId] = useState(0);
+  /** The image in crop mode, if any. */
+  const [cropItemId, setCropItemId] = useState<string | null>(null);
+  const cropItemIdRef = useRef(cropItemId);
+  cropItemIdRef.current = cropItemId;
+  /** Each picture's own size by file path, reported once it loads. */
+  const naturalSizesRef = useRef(new Map<string, Size>());
 
   // Pointer handlers are registered once and read the latest state through these refs.
   const itemsRef = useRef(items);
@@ -203,6 +221,16 @@ export default function C_canvas() {
       restoreItems(next);
     }
   }, [restoreItems]);
+
+  /** An image's crop. Images saved before crops existed show the middle of the picture, so that is worked out from its size. */
+  const getImageCrop = (item: BoardImageItem): ImageCrop | null => {
+    if (item.crop) {
+      return item.crop;
+    }
+
+    const naturalSize = naturalSizesRef.current.get(item.path);
+    return naturalSize ? getCoverCrop(item, naturalSize) : null;
+  };
 
   const getBoardPoint = (clientX: number, clientY: number): Point | null => {
     const canvasRect = canvasRef.current?.getBoundingClientRect();
@@ -404,6 +432,25 @@ export default function C_canvas() {
     setOptionsItemId((current) => (current === id ? current : null));
     textEditIdRef.current = null;
 
+    // In crop mode, dragging inside the image slides the picture within its frame.
+    if (cropItemIdRef.current === id) {
+      const item = itemsRef.current.find((candidate) => candidate.id === id);
+      const crop = item?.type === "image" ? getImageCrop(item) : null;
+      if (item && crop) {
+        interactionRef.current = {
+          kind: "slide",
+          pointer: { x: event.clientX, y: event.clientY },
+          id,
+          frame: { x: item.x, y: item.y, width: item.width, height: item.height },
+          crop,
+          startItems: itemsRef.current,
+        };
+      }
+      return;
+    }
+
+    setCropItemId(null);
+
     const isAdditive = event.ctrlKey || event.metaKey;
     const current = selectedIdsRef.current;
     const isSelected = current.includes(id);
@@ -461,9 +508,34 @@ export default function C_canvas() {
       start: { x: item.x, y: item.y, width: item.width, height: item.height },
       mode,
       minSize: MIN_ITEM_SIZE[item.type],
-      keepRatio: item.type === "image",
+      crop: item.type === "image" ? getImageCrop(item) : null,
+      isCropping: cropItemIdRef.current === id,
       startItems: itemsRef.current,
     };
+  }, []);
+
+  const handleToggleCrop = useCallback((id: string) => {
+    setCropItemId((current) => (current === id ? null : id));
+    setSelectedIds([id]);
+  }, []);
+
+  /** Shows the whole picture again, at its current scale and position. */
+  const handleResetCrop = useCallback((id: string) => {
+    const item = itemsRef.current.find((candidate) => candidate.id === id);
+    const crop = item?.type === "image" ? getImageCrop(item) : null;
+    if (!item || !crop) {
+      return;
+    }
+
+    const picture = getPictureRect(item, crop);
+    recordUndoStep();
+    setItems((current) =>
+      current.map((candidate) => (candidate.id === id ? { ...candidate, ...picture, crop: FULL_CROP } : candidate)),
+    );
+  }, []);
+
+  const handleImageLoad = useCallback((path: string, size: Size) => {
+    naturalSizesRef.current.set(path, size);
   }, []);
 
   const handleItemContextMenu = useCallback((id: string) => {
@@ -510,6 +582,7 @@ export default function C_canvas() {
 
     event.preventDefault();
     setOptionsItemId(null);
+    setCropItemId(null);
     textEditIdRef.current = null;
 
     const origin = getBoardPoint(event.clientX, event.clientY);
@@ -602,9 +675,24 @@ export default function C_canvas() {
         }
 
         case "resize": {
-          const { id, start, mode, minSize, keepRatio } = interaction;
-          const next = (keepRatio ? resizeRectKeepingRatio : resizeRect)(start, mode, deltaX, deltaY, minSize);
+          const { id, start, mode, minSize, crop, isCropping } = interaction;
+          // In crop mode the frame crops the picture. Otherwise the picture resizes with its frame:
+          // freely, or keeping its shape with Shift.
+          const next =
+            isCropping && crop
+              ? cropFrame(start, crop, mode, deltaX, deltaY, minSize)
+              : {
+                  ...(event.shiftKey ? resizeRectKeepingRatio : resizeRect)(start, mode, deltaX, deltaY, minSize),
+                  ...(crop && { crop }),
+                };
           setItems((current) => current.map((item) => (item.id === id ? { ...item, ...next } : item)));
+          break;
+        }
+
+        case "slide": {
+          const { id, frame, crop } = interaction;
+          const nextCrop = slidePicture(frame, crop, deltaX, deltaY);
+          setItems((current) => current.map((item) => (item.id === id ? { ...item, crop: nextCrop } : item)));
           break;
         }
 
@@ -643,8 +731,11 @@ export default function C_canvas() {
         setSelectedIds([interaction.clickedId]);
       }
 
-      // A finished drag or resize is one undo step.
-      if ((interaction?.kind === "move" || interaction?.kind === "resize") && itemsRef.current !== interaction.startItems) {
+      // A finished drag, resize or slide is one undo step.
+      if (
+        (interaction?.kind === "move" || interaction?.kind === "resize" || interaction?.kind === "slide") &&
+        itemsRef.current !== interaction.startItems
+      ) {
         recordUndoStep(interaction.startItems);
       }
 
@@ -702,6 +793,7 @@ export default function C_canvas() {
     setSelectedIds([]);
     setSelectionBox(null);
     setOptionsItemId(null);
+    setCropItemId(null);
     setView({
       x: board.view.x || 0,
       y: board.view.y || 0,
@@ -836,6 +928,21 @@ export default function C_canvas() {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       const isTyping = target.closest("textarea, input, [contenteditable='true']") !== null;
+
+      // F5 looks for missing images again. It (and Ctrl+R) would otherwise reload the window and lose unsaved work.
+      if (event.key === "F5" || (event.key.toLowerCase() === "r" && (event.ctrlKey || event.metaKey))) {
+        event.preventDefault();
+        if (event.key === "F5") {
+          setImageRefreshId((current) => current + 1);
+        }
+        return;
+      }
+
+      if ((event.key === "Enter" || event.key === "Escape") && cropItemIdRef.current && !isTyping && !isSettingsOpenRef.current) {
+        event.preventDefault();
+        setCropItemId(null);
+        return;
+      }
 
       if (event.key === "," && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
@@ -1027,11 +1134,16 @@ export default function C_canvas() {
             item={item}
             isSelected={selectedIdSet.has(item.id)}
             isOptionsOpen={optionsItemId === item.id}
+            isCropping={cropItemId === item.id}
+            refreshId={imageRefreshId}
             onPointerDown={handleItemPointerDown}
             onResizeStart={handleResizeStart}
             onContextMenu={handleItemContextMenu}
             onDelete={handleItemDelete}
             onTextChange={handleTextChange}
+            onToggleCrop={handleToggleCrop}
+            onResetCrop={handleResetCrop}
+            onImageLoad={handleImageLoad}
           />
         ))}
 

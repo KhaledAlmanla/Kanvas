@@ -1,7 +1,17 @@
 import { memo, useEffect, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ImageOff, PencilLine, Trash } from "lucide-react";
-import { FONT_STACKS, RESIZE_MODES, type BoardItem, type ResizeMode, type TextStyle } from "../lib/boardItems";
+import { Crop, ImageOff, PencilLine, RotateCcw, Trash } from "lucide-react";
+import {
+  FONT_STACKS,
+  FULL_CROP,
+  RESIZE_MODES,
+  getCoverCrop,
+  getPictureRect,
+  type BoardItem,
+  type ResizeMode,
+  type Size,
+  type TextStyle,
+} from "../lib/boardItems";
 
 const JUSTIFY_BY_ALIGN: Record<TextStyle["align"], string> = { left: "flex-start", center: "center", right: "flex-end" };
 
@@ -21,29 +31,48 @@ type C_boardItemProps = {
   isSelected: boolean;
   /** Set when the option bar was opened by right-clicking, for the "Right-click only" setting. */
   isOptionsOpen: boolean;
+  /** In crop mode the whole picture shows faded around the frame, and dragging inside slides it. */
+  isCropping: boolean;
+  /** Goes up when F5 is pressed, so missing images are looked for again. */
+  refreshId: number;
   // These callbacks must keep the same identity across renders, or memo stops helping.
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>, id: string) => void;
   onResizeStart: (event: React.PointerEvent<HTMLDivElement>, id: string, mode: ResizeMode) => void;
   onContextMenu: (id: string) => void;
   onDelete: (id: string) => void;
   onTextChange: (id: string, text: string) => void;
+  onToggleCrop: (id: string) => void;
+  onResetCrop: (id: string) => void;
+  /** Reports a picture's own size once loaded; the canvas needs it to crop images saved before crops existed. */
+  onImageLoad: (path: string, size: Size) => void;
 };
 
 function C_boardItem({
   item,
   isSelected,
   isOptionsOpen,
+  isCropping,
+  refreshId,
   onPointerDown,
   onResizeStart,
   onContextMenu,
   onDelete,
   onTextChange,
+  onToggleCrop,
+  onResetCrop,
+  onImageLoad,
 }: C_boardItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const imagePath = item.type === "image" ? item.path : null;
   /** The image file that failed to load, e.g. because it was deleted or renamed outside Kanvas. */
   const [missingPath, setMissingPath] = useState<string | null>(null);
   const isImageMissing = imagePath !== null && missingPath === imagePath;
+  const [naturalSize, setNaturalSize] = useState<Size | null>(null);
+
+  // F5 looks for missing images again.
+  useEffect(() => {
+    setMissingPath(null);
+  }, [refreshId]);
   const label = item.type === "image" ? "image" : "text box";
 
   useEffect(() => {
@@ -65,7 +94,7 @@ function C_boardItem({
 
   return (
     <div
-      className={`board-item board-${item.type}-item${isSelected ? " is-selected" : ""}${isOptionsOpen ? " is-options-open" : ""}`}
+      className={`board-item board-${item.type}-item${isSelected ? " is-selected" : ""}${isOptionsOpen ? " is-options-open" : ""}${isCropping ? " is-cropping" : ""}`}
       style={{ left: item.x, top: item.y, width: item.width, height: item.height }}
       onPointerDown={handlePointerDown}
       onDragStart={(event) => event.preventDefault()}
@@ -84,13 +113,36 @@ function C_boardItem({
               <span className="board-image-missing-name">{item.name}</span>
             </div>
           ) : (
-            <img
-              src={convertFileSrc(item.path)}
-              alt={item.name}
-              className="board-image-element"
-              draggable={false}
-              onError={() => setMissingPath(item.path)}
-            />
+            (() => {
+              const crop = item.crop ?? (naturalSize ? getCoverCrop(item, naturalSize) : FULL_CROP);
+              const picture = getPictureRect({ x: 0, y: 0, width: item.width, height: item.height }, crop);
+              const pictureStyle = { left: picture.x, top: picture.y, width: picture.width, height: picture.height };
+              // The asset protocol ignores the query, but the changed address makes the webview load the file again.
+              const src = convertFileSrc(item.path) + (refreshId > 0 ? `?r=${refreshId}` : "");
+
+              return (
+                <>
+                  {isCropping && (
+                    <img src={src} alt="" className="board-image-ghost" style={pictureStyle} draggable={false} />
+                  )}
+                  <div className="board-image-clip" onDoubleClick={() => onToggleCrop(item.id)}>
+                    <img
+                      src={src}
+                      alt={item.name}
+                      className="board-image-element"
+                      style={pictureStyle}
+                      draggable={false}
+                      onLoad={(event) => {
+                        const size = { width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight };
+                        setNaturalSize(size);
+                        onImageLoad(item.path, size);
+                      }}
+                      onError={() => setMissingPath(item.path)}
+                    />
+                  </div>
+                </>
+              );
+            })()
           )
         ) : isEditing ? (
           <textarea
@@ -130,7 +182,28 @@ function C_boardItem({
           >
             <Trash size={14} strokeWidth={2} />
           </button>
-          {/* Crop is hidden until it's built. */}
+          {item.type === "image" && !isImageMissing && (
+            <button
+              type="button"
+              className={`option-button crop${isCropping ? " is-active" : ""}`}
+              aria-label={isCropping ? "Finish cropping" : "Crop image"}
+              title={isCropping ? "Finish cropping (Enter)" : "Crop (or double-click the image)"}
+              onClick={() => onToggleCrop(item.id)}
+            >
+              <Crop size={14} strokeWidth={2} />
+            </button>
+          )}
+          {item.type === "image" && isCropping && (
+            <button
+              type="button"
+              className="option-button crop"
+              aria-label="Show the whole picture"
+              title="Reset crop: show the whole picture"
+              onClick={() => onResetCrop(item.id)}
+            >
+              <RotateCcw size={14} strokeWidth={2} />
+            </button>
+          )}
           {item.type === "text" && (
             <button
               type="button"

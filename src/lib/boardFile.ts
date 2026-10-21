@@ -1,11 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { dirname, join } from "@tauri-apps/api/path";
 import { ask, message, open, save } from "@tauri-apps/plugin-dialog";
-import type { BoardImageItem, BoardItem, BoardTextItem, Rect } from "./boardItems";
+import { isValidCrop, type BoardImageItem, type BoardItem, type BoardTextItem, type Rect } from "./boardItems";
 import type { ThemeMode } from "./settings";
 
 export const BOARD_EXTENSION = "kanvas";
-export const BOARD_FILE_VERSION = 3;
+export const BOARD_FILE_VERSION = 4;
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"];
 
 export type BoardView = {
@@ -43,6 +43,7 @@ type BoardFile = {
 };
 
 /**
+ * Version 4 added `crop` to images; older images have none.
  * Version 1 kept images and text boxes in separate lists, with numeric ids.
  * Versions 1 and 2 also stored a theme; it is dropped on load so old boards follow the app theme.
  */
@@ -141,8 +142,9 @@ export async function readBoardFile(boardPath: string): Promise<BoardState> {
         return item;
       }
 
-      const { file, ...rest } = item;
-      return { ...rest, path: await join(boardDir, ...file.split("/")) };
+      const { file, crop, ...rest } = item;
+      const path = await join(boardDir, ...file.split("/"));
+      return isValidCrop(crop) ? { ...rest, path, crop } : { ...rest, path };
     }),
   );
 

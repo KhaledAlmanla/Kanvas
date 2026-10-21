@@ -5,12 +5,32 @@ export type Rect = {
   height: number;
 };
 
+export type Size = {
+  width: number;
+  height: number;
+};
+
+/** The part of a picture shown in its frame, as fractions (0 to 1) of the picture's width and height. */
+export type ImageCrop = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+};
+
+export const FULL_CROP: ImageCrop = { left: 0, top: 0, right: 1, bottom: 1 };
+
 export type BoardImageItem = Rect & {
   id: string;
   type: "image";
   /** Absolute path of the image file on disk. */
   path: string;
   name: string;
+  /**
+   * Images saved before cropping existed have none: they show the middle of the picture,
+   * filling the frame without stretching (see getCoverCrop).
+   */
+  crop?: ImageCrop;
 };
 
 export type FontChoice = "sans" | "serif" | "mono" | "handwritten";
@@ -89,7 +109,7 @@ export function resizeRect(
 }
 
 /**
- * Resizes a rect like resizeRect, but keeps its width-to-height ratio. Corners keep the opposite
+ * Scales a rect like resizeRect, but keeps its width-to-height ratio (Shift+drag). Corners keep the opposite
  * corner in place; edges keep the opposite edge in place and grow evenly on both sides.
  */
 export function resizeRectKeepingRatio(
@@ -123,4 +143,102 @@ export function resizeRectKeepingRatio(
       : start.y + (start.height - height) / 2;
 
   return { x, y, width, height };
+}
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+/** The crop that fills a frame with the middle of a picture without stretching it. */
+export function getCoverCrop(frame: Size, picture: Size): ImageCrop {
+  const frameRatio = frame.width / frame.height;
+  const pictureRatio = picture.width / picture.height;
+
+  if (pictureRatio > frameRatio) {
+    const shown = frameRatio / pictureRatio;
+    const left = (1 - shown) / 2;
+    return { left, top: 0, right: left + shown, bottom: 1 };
+  }
+
+  const shown = pictureRatio / frameRatio;
+  const top = (1 - shown) / 2;
+  return { left: 0, top, right: 1, bottom: top + shown };
+}
+
+/** Where the whole picture sits, given its frame and crop: it can reach past the frame on every side. */
+export function getPictureRect(frame: Rect, crop: ImageCrop): Rect {
+  const width = frame.width / (crop.right - crop.left);
+  const height = frame.height / (crop.bottom - crop.top);
+  return { x: frame.x - crop.left * width, y: frame.y - crop.top * height, width, height };
+}
+
+function getCropInPicture(frame: Rect, picture: Rect): ImageCrop {
+  return {
+    left: clamp((frame.x - picture.x) / picture.width, 0, 1),
+    top: clamp((frame.y - picture.y) / picture.height, 0, 1),
+    right: clamp((frame.x + frame.width - picture.x) / picture.width, 0, 1),
+    bottom: clamp((frame.y + frame.height - picture.y) / picture.height, 0, 1),
+  };
+}
+
+/**
+ * Drags an image frame's edge or corner like an InDesign frame: the picture stays where it is,
+ * and the frame shows more or less of it, never reaching past the picture's edges.
+ */
+export function cropFrame(
+  start: Rect,
+  crop: ImageCrop,
+  mode: ResizeMode,
+  deltaX: number,
+  deltaY: number,
+  minSize: Size,
+): Rect & { crop: ImageCrop } {
+  const picture = getPictureRect(start, crop);
+  // A frame already smaller than the minimum may stay that small.
+  const minWidth = Math.min(minSize.width, start.width);
+  const minHeight = Math.min(minSize.height, start.height);
+  let left = start.x;
+  let top = start.y;
+  let right = start.x + start.width;
+  let bottom = start.y + start.height;
+
+  if (mode.includes("e")) {
+    right = clamp(right + deltaX, left + minWidth, picture.x + picture.width);
+  }
+
+  if (mode.includes("w")) {
+    left = clamp(left + deltaX, picture.x, right - minWidth);
+  }
+
+  if (mode.includes("s")) {
+    bottom = clamp(bottom + deltaY, top + minHeight, picture.y + picture.height);
+  }
+
+  if (mode.includes("n")) {
+    top = clamp(top + deltaY, picture.y, bottom - minHeight);
+  }
+
+  const frame = { x: left, y: top, width: right - left, height: bottom - top };
+  return { ...frame, crop: getCropInPicture(frame, picture) };
+}
+
+/** Slides the picture inside its frame (crop mode), keeping the frame covered. */
+export function slidePicture(frame: Rect, crop: ImageCrop, deltaX: number, deltaY: number): ImageCrop {
+  const picture = getPictureRect(frame, crop);
+  const x = clamp(picture.x + deltaX, frame.x + frame.width - picture.width, frame.x);
+  const y = clamp(picture.y + deltaY, frame.y + frame.height - picture.height, frame.y);
+  return getCropInPicture(frame, { ...picture, x, y });
+}
+
+/** Keeps a crop read from a board file only if it makes sense. */
+export function isValidCrop(crop: unknown): crop is ImageCrop {
+  if (typeof crop !== "object" || crop === null) {
+    return false;
+  }
+
+  const { left, top, right, bottom } = crop as Record<string, unknown>;
+  const values = [left, top, right, bottom];
+  return (
+    values.every((value) => typeof value === "number" && value >= 0 && value <= 1) &&
+    (left as number) < (right as number) &&
+    (top as number) < (bottom as number)
+  );
 }

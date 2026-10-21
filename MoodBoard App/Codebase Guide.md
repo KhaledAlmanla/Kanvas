@@ -172,7 +172,7 @@ Owns everything about the current board. Read it top to bottom in this order:
 5. **Adding things**: `handleImport` (pick images → add image items), `handleAddText`.
 6. **Item callbacks** passed down to every item: `handleItemPointerDown` (select + start move), `handleResizeStart`, `handleItemContextMenu`, `handleItemDelete`, `handleTextChange`.
 7. **Canvas mouse**: `handleCanvasPointerDown` (middle button = pan, left on empty space = box-select), `handleCanvasContextMenu` (right-click moves the toolbar to the cursor).
-8. **The drag engine**: one effect listening to `pointermove` / `pointerup` for the whole window. It looks at the current `Interaction` and moves, resizes, pans or box-selects. Movement is divided by zoom so items stay under the cursor. Images resize with `resizeRectKeepingRatio`, so they always keep their shape; text boxes use `resizeRect`.
+8. **The drag engine**: one effect listening to `pointermove` / `pointerup` for the whole window. It looks at the current `Interaction` and moves, resizes, pans or box-selects. Movement is divided by zoom so items stay under the cursor. Resizing uses `resizeRect`, or `resizeRectKeepingRatio` with Shift; an image's picture resizes with its frame (its `crop` stays the same). In crop mode (`cropItemId`, entered by double-clicking an image), dragging the frame uses `cropFrame` (the frame shows more or less of the picture) and dragging inside the image is a `slide` interaction (`slidePicture`).
 9. **Wheel zoom**: zooms around the mouse pointer, within the zoom limits from settings.
 10. **File actions**: `applyBoard`, `writeBoardTo`, `saveBoard`, `saveBoardAs`, `resolveUnsavedChanges` (the Save / Don't Save / Cancel prompt), `newBoard`, `openBoard`, `runFileAction` (stops two dialogs from opening at once).
 11. **Keyboard**: Delete/Backspace, Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (undo, redo), Ctrl+C / X / V, Ctrl+S, Ctrl+Shift+S, Ctrl+O, Ctrl+N, Ctrl+, (settings).
@@ -181,7 +181,7 @@ Owns everything about the current board. Read it top to bottom in this order:
 14. **What it draws**: the dot grid, every `C_boardItem`, the selection box, the `FloatingToolbar`, and `C_settingsDialog` when open. The colours come from `getCanvasVariables` (in `settings.ts`) as CSS variables on the canvas.
 
 ### `src/components/C_boardItem.tsx` (one item)
-Draws a single image or text box at its position: the frame, the picture or text, 8 resize handles (when selected), and the option bar beside it (delete; edit for text; crop is hidden until built). If an image file can't be loaded (deleted or renamed outside Kanvas), it shows an "Image missing" box with the file name instead. It **does not change data itself**. It calls the canvas's callbacks (`onDelete`, `onTextChange`, …). It remembers two things locally: `isEditing` (whether the text box is in typing mode) and `missingPath` (the image file that failed to load).
+Draws a single image or text box at its position: the frame, the picture or text, 8 resize handles (when selected), and the option bar beside it (delete; crop and reset crop for images; edit for text). An image is drawn as the whole picture placed by its `crop`, clipped by the frame; in crop mode the whole picture also shows faded around it. If an image file can't be loaded (deleted or renamed outside Kanvas), it shows an "Image missing" box with the file name instead. It **does not change data itself**. It calls the canvas's callbacks (`onDelete`, `onTextChange`, …). It remembers three things locally: `isEditing` (whether the text box is in typing mode), `missingPath` (the image file that failed to load; F5 clears it so the file is tried again) and `naturalSize` (the picture's own size, also reported to the canvas).
 
 ### `src/components/C_floatingToolbar.tsx` (the toolbar)
 - `toolbarItems`: **the list of buttons**: label (tooltip), `type`, `disabled`, `dividerAfter`.
@@ -190,7 +190,7 @@ Draws a single image or text box at its position: the frame, the picture or text
 - It also handles dragging the toolbar by its handle.
 
 ### `src/lib/boardItems.ts` (what an item is)
-Defines `BoardImageItem`, `BoardTextItem` and `BoardItem` (either one), the minimum sizes (`MIN_ITEM_SIZE`), `createItemId()`, and three maths helpers: `resizeRect` (resizing from an edge or corner), `resizeRectKeepingRatio` (the same, keeping the shape, used for images) and `rectsIntersect` (is an item inside the selection box?).
+Defines `BoardImageItem`, `BoardTextItem` and `BoardItem` (either one), the minimum sizes (`MIN_ITEM_SIZE`), `createItemId()`, the `ImageCrop` type (the part of the picture shown, as fractions 0 to 1: left, top, right, bottom), and the maths helpers: `resizeRect` (resizing from an edge or corner), `resizeRectKeepingRatio` (the same, keeping the shape; Shift+drag), `cropFrame` and `slidePicture` (crop mode: dragging the frame's edge, and sliding the picture), `getPictureRect` (where the whole picture sits), `getCoverCrop` (the crop for images saved before crops existed: the middle of the picture, filling the frame) and `rectsIntersect` (is an item inside the selection box?).
 
 ### `src/lib/boardFile.ts` (saving and loading)
 - `writeBoardFile`: copies each image into the board's `Images/` folder (through Rust), then writes the `.kanvas` file.
@@ -262,12 +262,13 @@ Inside `MyBoard.kanvas` (plain JSON, so you can open it in a text editor):
 ```json
 {
   "app": "kanvas",
-  "version": 3,
+  "version": 4,
   "settings": { "theme": "app", "background": "dots" },
   "view": { "x": 0, "y": 0, "zoom": 1 },
   "items": [
     { "id": "3f2a…", "type": "image", "name": "photo.png", "file": "Images/photo.png",
-      "x": 64, "y": 64, "width": 220, "height": 147 },
+      "x": 64, "y": 64, "width": 110, "height": 147,
+      "crop": { "left": 0.25, "top": 0, "right": 0.75, "bottom": 1 } },
     { "id": "9c1b…", "type": "text", "text": "New text box",
       "x": 180, "y": 110, "width": 220, "height": 110,
       "style": { "font": "sans", "size": 16, "color": null, "align": "center" } }
@@ -276,6 +277,8 @@ Inside `MyBoard.kanvas` (plain JSON, so you can open it in a text editor):
 ```
 
 Image paths are **relative** (`Images/photo.png`), so the board folder can be moved or copied anywhere.
+
+`x`, `y`, `width` and `height` are the image's **frame** on the board. `crop` says which part of the picture the frame shows, as fractions of the picture: here the middle half of its width and all of its height. Images saved before version 4 have no `crop` and show the middle of the picture, filling the frame.
 
 ---
 
