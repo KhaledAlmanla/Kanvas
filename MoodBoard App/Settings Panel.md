@@ -19,7 +19,7 @@ Related: [[APP design]] · [[Codebase Guide]] (section 8, Recipe D, shows where 
 
 **Shown as "coming soon" in the dialog:** paper texture, snapping, clean up unused images, autosave, export options.
 
-**Done since:** each save keeps a backup (`.kanvas.bak`). Instead of always keeping the aspect ratio (your note in section 4), images resize freely, Shift+drag keeps the shape, and double-click opens crop mode, where dragging the frame crops like InDesign. None of these is a setting; the Images & saving section mentions them.
+**Done since:** each save keeps a backup (`.kanvas.bak`). Instead of always keeping the aspect ratio (your note in section 4), resizing an image changes its frame and the picture fills it without stretching, Shift+drag keeps the shape, Ctrl+drag stretches the picture, and double-click opens crop mode, where dragging the frame crops like InDesign and square handles scale the picture. None of these is a setting; the Images & saving section mentions them.
 
 ## Opening and closing
 - A gear button at the end of the floating toolbar, plus Ctrl+, (Cmd+, on macOS).

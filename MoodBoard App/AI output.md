@@ -104,3 +104,20 @@ Permission: AI allowed
 #### Changes by "Claude"_ Date[21.10.2026]_time[22:38]:
 - User feedback: with edge-cropping as the normal drag, images could no longer be resized. Changed as the user asked: **dragging an image's edge or corner resizes it again** (freely, the picture stretching with the frame; Shift keeps the shape). **Cropping happens only in crop mode** (double-click or the Crop button), where dragging the frame crops and dragging inside slides the picture. Resizing keeps an image's crop, so a cropped image stays cropped the same way.
 - Updated the settings note and shortcuts list, [[CHANGELOG]], [[Roadmap]], [[Codebase Guide]] and [[Settings Panel]] to match, and rebuilt the Linux test package.
+#### Changes by "Claude"_ Date[24.10.2026]_time[13:17]:
+- Added [[Next steps]]: the user's 1.0 test checklist, with a summary of what's new in this build and what changed on 21.10.2026. It replaces an earlier version of the note that held the open questions about resizing; the user answered them on 24.10.2026.
+- **Normal-mode image resizing changed** (the user's design): dragging an edge or corner resizes the frame, and the picture fills it without stretching (`fillFrame` in `boardItems.ts`). Dragging outwards first shows more of the picture; once a side is fully shown, the picture zooms in. The point of the picture under the frame's fixed side stays put. The picture only gets smaller when the whole frame does, so a zoom chosen in crop mode survives widening or narrowing a frame.
+- **Ctrl+drag** (or Cmd) stretches the picture with the frame (the old free resize). **Shift+drag** still scales frame and picture together. Shift wins if both are held. Text boxes are unchanged.
+- **Crop mode: square picture handles** on the faded picture, just outside its edges so they don't cover the frame's round handles (`.picture-handle` in App.css, new `scalePicture` interaction in `C_canvas.tsx`, `scalePicture` helper). They scale the picture keeping its shape, or stretch it with Ctrl. The picture can never get smaller than the frame. Each drag is one undo step.
+- **Reset** in crop mode now also removes stretching (it uses the picture's own proportions, kept centred).
+- No file format change: version 4's crop already describes a stretched picture.
+- Settings: the shortcuts list and the Images & saving note describe Ctrl+drag and the square handles.
+- Updated [[CHANGELOG]], [[Roadmap]] (the replaced aspect-ratio item), [[Settings Panel]] and [[Codebase Guide]]. Not yet tested in the running app.
+#### Changes by "Claude"_ Date[24.10.2026]_time[15:17]:
+- Read the user's test results in [[Next steps]] and answered each comment under it (as "AI comment").
+- **Fixed: custom canvas gradient start and end had no visible effect.** The dot-grid layer (`.moodboard-grid` in App.css, over 10,000 px wide) also drew the gradient, so only a thin slice from its middle showed. It now draws only the dots; the gradient on `.moodboard-canvas` fills the window.
+- **Fixed: raising the minimum zoom made the board jump.** When the current zoom is below the new minimum, the board still zooms in to it (intended), but now around the middle of the window instead of the top-left corner (`C_canvas.tsx`).
+- Explained in [[Next steps]] what the "Text box defaults" test is. Asked about two image-resizing items that were left unticked without a note (bottom-edge drag, Reset).
+#### Changes by "Claude"_ Date[24.10.2026]_time[15:34]:
+- **Fixed: the dot grid didn't zoom with the board.** It was a 10,000 px layer (`.moodboard-grid`) scaled around its own top-left corner, 5,000 px off-screen, so the dots slid relative to the images, and at low zoom the layer could be smaller than the window. The grid now fills the window, and `C_canvas.tsx` sets its spacing (grid spacing × zoom), dot size (`--grid-dot`) and position (the pan) on every view change, so the dots stay locked to the items at any zoom. The unused `--grid-spacing` variable was removed from `settings.ts`.
+- The user's follow-up comment on the minimum-zoom test in [[Next steps]] is answered there. The colour gradient deliberately stays still.

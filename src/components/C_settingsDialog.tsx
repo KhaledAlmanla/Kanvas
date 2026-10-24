@@ -59,7 +59,8 @@ const SHORTCUTS: [string, string][] = [
   ["Drag on empty canvas", "Box-select (hold Ctrl to add to the selection)"],
   ["Double-click a text box", "Edit its text"],
   ["Shift+drag an edge or corner", "Resize, keeping the shape"],
-  ["Double-click an image", "Crop mode: drag the edges to crop, drag inside to slide; Enter or Esc to finish"],
+  ["Ctrl+drag an image's edge or corner", "Stretch the picture"],
+  ["Double-click an image", "Crop mode: drag the frame to crop, the square handles to scale the picture, inside to slide it; Enter or Esc to finish"],
   ["Right-click an item", "Show its option bar"],
   ["Right-click the canvas", "Move the toolbar to the pointer"],
   ["Middle-drag", "Pan the board"],
@@ -474,8 +475,9 @@ export default function C_settingsDialog({
               it, rename it to MyBoard.kanvas.
             </p>
             <p className="settings-note">
-              Drag an image's edge or corner to resize it (hold Shift to keep its shape). Double-click an image to crop
-              it: drag the frame's edges to crop, and drag inside to slide the picture.
+              Drag an image's edge or corner to resize its frame: the picture fills it without stretching (hold Shift
+              to keep the frame's shape, or Ctrl to stretch the picture). Double-click an image to crop it: drag the
+              frame's edges to crop, the square handles to scale the picture (Ctrl stretches it), and inside to slide it.
             </p>
             <ComingSoon
               items={[

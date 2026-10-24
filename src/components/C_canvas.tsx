@@ -32,11 +32,13 @@ import {
   MIN_ITEM_SIZE,
   createItemId,
   cropFrame,
+  fillFrame,
   getCoverCrop,
   getPictureRect,
   rectsIntersect,
   resizeRect,
   resizeRectKeepingRatio,
+  scalePicture,
   slidePicture,
   type BoardImageItem,
   type BoardItem,
@@ -99,6 +101,8 @@ type Interaction =
       startItems: BoardItem[];
     }
   | { kind: "slide"; pointer: Point; id: string; frame: Rect; crop: ImageCrop; startItems: BoardItem[] }
+  /** Crop mode: dragging the picture's own edge or corner scales it inside the frame. */
+  | { kind: "scalePicture"; pointer: Point; id: string; frame: Rect; crop: ImageCrop; mode: ResizeMode; startItems: BoardItem[] }
   | { kind: "marquee"; pointer: Point; origin: Point; baseSelection: string[]; hasMoved: boolean };
 
 export default function C_canvas() {
@@ -514,12 +518,37 @@ export default function C_canvas() {
     };
   }, []);
 
+  const handlePictureResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>, id: string, mode: ResizeMode) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const item = itemsRef.current.find((candidate) => candidate.id === id);
+    const crop = item?.type === "image" ? getImageCrop(item) : null;
+    if (!item || !crop) {
+      return;
+    }
+
+    interactionRef.current = {
+      kind: "scalePicture",
+      pointer: { x: event.clientX, y: event.clientY },
+      id,
+      frame: { x: item.x, y: item.y, width: item.width, height: item.height },
+      crop,
+      mode,
+      startItems: itemsRef.current,
+    };
+  }, []);
+
   const handleToggleCrop = useCallback((id: string) => {
     setCropItemId((current) => (current === id ? null : id));
     setSelectedIds([id]);
   }, []);
 
-  /** Shows the whole picture again, at its current scale and position. */
+  /** Shows the whole picture again, at its current scale and position, and undoes any stretching. */
   const handleResetCrop = useCallback((id: string) => {
     const item = itemsRef.current.find((candidate) => candidate.id === id);
     const crop = item?.type === "image" ? getImageCrop(item) : null;
@@ -528,6 +557,12 @@ export default function C_canvas() {
     }
 
     const picture = getPictureRect(item, crop);
+    const naturalSize = item.type === "image" ? naturalSizesRef.current.get(item.path) : undefined;
+    if (naturalSize) {
+      const height = picture.width * (naturalSize.height / naturalSize.width);
+      picture.y += (picture.height - height) / 2;
+      picture.height = height;
+    }
     recordUndoStep();
     setItems((current) =>
       current.map((candidate) => (candidate.id === id ? { ...candidate, ...picture, crop: FULL_CROP } : candidate)),
@@ -676,15 +711,16 @@ export default function C_canvas() {
 
         case "resize": {
           const { id, start, mode, minSize, crop, isCropping } = interaction;
-          // In crop mode the frame crops the picture. Otherwise the picture resizes with its frame:
-          // freely, or keeping its shape with Shift.
-          const next =
-            isCropping && crop
-              ? cropFrame(start, crop, mode, deltaX, deltaY, minSize)
-              : {
-                  ...(event.shiftKey ? resizeRectKeepingRatio : resizeRect)(start, mode, deltaX, deltaY, minSize),
-                  ...(crop && { crop }),
-                };
+          // In crop mode the frame crops the picture. Otherwise the frame resizes (keeping its shape with Shift):
+          // the picture fills it without stretching, or stretches with it when Ctrl is held.
+          const isStretching = event.ctrlKey || event.metaKey;
+          let next: Rect & { crop?: ImageCrop };
+          if (isCropping && crop) {
+            next = cropFrame(start, crop, mode, deltaX, deltaY, minSize);
+          } else {
+            const frame = (event.shiftKey ? resizeRectKeepingRatio : resizeRect)(start, mode, deltaX, deltaY, minSize);
+            next = crop ? { ...frame, crop: event.shiftKey || isStretching ? crop : fillFrame(start, crop, frame, mode) } : frame;
+          }
           setItems((current) => current.map((item) => (item.id === id ? { ...item, ...next } : item)));
           break;
         }
@@ -692,6 +728,13 @@ export default function C_canvas() {
         case "slide": {
           const { id, frame, crop } = interaction;
           const nextCrop = slidePicture(frame, crop, deltaX, deltaY);
+          setItems((current) => current.map((item) => (item.id === id ? { ...item, crop: nextCrop } : item)));
+          break;
+        }
+
+        case "scalePicture": {
+          const { id, frame, crop, mode } = interaction;
+          const nextCrop = scalePicture(frame, crop, mode, deltaX, deltaY, event.ctrlKey || event.metaKey);
           setItems((current) => current.map((item) => (item.id === id ? { ...item, crop: nextCrop } : item)));
           break;
         }
@@ -731,11 +774,8 @@ export default function C_canvas() {
         setSelectedIds([interaction.clickedId]);
       }
 
-      // A finished drag, resize or slide is one undo step.
-      if (
-        (interaction?.kind === "move" || interaction?.kind === "resize" || interaction?.kind === "slide") &&
-        itemsRef.current !== interaction.startItems
-      ) {
+      // A finished drag, resize, slide or picture scale is one undo step.
+      if (interaction && "startItems" in interaction && itemsRef.current !== interaction.startItems) {
         recordUndoStep(interaction.startItems);
       }
 
@@ -1093,11 +1133,20 @@ export default function C_canvas() {
     }
   }, [areSettingsLoaded]);
 
-  // Changing the zoom limits pulls the current zoom back inside them.
+  // Changing the zoom limits pulls the current zoom back inside them, around the middle of the window.
   useEffect(() => {
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    const centerX = (canvasRect?.width ?? 0) / 2;
+    const centerY = (canvasRect?.height ?? 0) / 2;
     setView((current) => {
       const zoom = clampZoom(current.zoom, settings);
-      return zoom === current.zoom ? current : { ...current, zoom };
+      if (zoom === current.zoom) {
+        return current;
+      }
+
+      const boardX = (centerX - current.x) / current.zoom;
+      const boardY = (centerY - current.y) / current.zoom;
+      return { x: centerX - boardX * zoom, y: centerY - boardY * zoom, zoom };
     });
   }, [settings.canvas.minZoomPercent, settings.canvas.maxZoomPercent]);
 
@@ -1112,6 +1161,7 @@ export default function C_canvas() {
   const closeSettings = useCallback(() => setIsSettingsOpen(false), []);
 
   const contentTransform = `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`;
+  const gridSize = settings.appearance.gridSpacing * view.zoom;
   const recentBoards = settings.general.showRecentBoards
     ? settings.memory.recentBoards.slice(0, settings.general.recentBoardsLimit)
     : [];
@@ -1125,7 +1175,16 @@ export default function C_canvas() {
       onPointerDown={handleCanvasPointerDown}
       onContextMenu={handleCanvasContextMenu}
     >
-      <div className="moodboard-grid" style={{ transform: contentTransform }} />
+      <div
+        className="moodboard-grid"
+        style={
+          {
+            "--grid-dot": `${view.zoom}px`,
+            backgroundSize: `${gridSize}px ${gridSize}px`,
+            backgroundPosition: `${view.x}px ${view.y}px`,
+          } as React.CSSProperties
+        }
+      />
 
       <div className="moodboard-canvas-content" style={{ transform: contentTransform }}>
         {items.map((item) => (
@@ -1143,6 +1202,7 @@ export default function C_canvas() {
             onTextChange={handleTextChange}
             onToggleCrop={handleToggleCrop}
             onResetCrop={handleResetCrop}
+            onPictureResizeStart={handlePictureResizeStart}
             onImageLoad={handleImageLoad}
           />
         ))}

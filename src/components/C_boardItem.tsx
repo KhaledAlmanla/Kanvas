@@ -43,6 +43,8 @@ type C_boardItemProps = {
   onTextChange: (id: string, text: string) => void;
   onToggleCrop: (id: string) => void;
   onResetCrop: (id: string) => void;
+  /** Crop mode: dragging one of the picture's own handles scales the picture inside the frame. */
+  onPictureResizeStart: (event: React.PointerEvent<HTMLDivElement>, id: string, mode: ResizeMode) => void;
   /** Reports a picture's own size once loaded; the canvas needs it to crop images saved before crops existed. */
   onImageLoad: (path: string, size: Size) => void;
 };
@@ -60,6 +62,7 @@ function C_boardItem({
   onTextChange,
   onToggleCrop,
   onResetCrop,
+  onPictureResizeStart,
   onImageLoad,
 }: C_boardItemProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -124,6 +127,18 @@ function C_boardItem({
                 <>
                   {isCropping && (
                     <img src={src} alt="" className="board-image-ghost" style={pictureStyle} draggable={false} />
+                  )}
+                  {isCropping && (
+                    <div className="picture-handles" style={pictureStyle}>
+                      {RESIZE_MODES.map((mode) => (
+                        <div
+                          key={mode}
+                          className={`picture-handle picture-handle--${mode}`}
+                          title="Scale the picture (Ctrl: stretch)"
+                          onPointerDown={(event) => onPictureResizeStart(event, item.id, mode)}
+                        />
+                      ))}
+                    </div>
                   )}
                   <div className="board-image-clip" onDoubleClick={() => onToggleCrop(item.id)}>
                     <img

@@ -228,6 +228,93 @@ export function slidePicture(frame: Rect, crop: ImageCrop, deltaX: number, delta
   return getCropInPicture(frame, { ...picture, x, y });
 }
 
+/**
+ * Which point stays put while dragging an edge or corner, as fractions of the width and height:
+ * the opposite side, or the middle along an edge.
+ */
+function getResizeAnchor(mode: ResizeMode) {
+  return {
+    x: mode.includes("e") ? 0 : mode.includes("w") ? 1 : 0.5,
+    y: mode.includes("s") ? 0 : mode.includes("n") ? 1 : 0.5,
+  };
+}
+
+/**
+ * The crop for an image frame resized in normal mode: the picture keeps its shape and fills the new frame.
+ * Dragging outwards shows more of the picture, and once a side is fully shown, the picture zooms in.
+ * It only gets smaller when the whole frame does.
+ */
+export function fillFrame(start: Rect, crop: ImageCrop, frame: Rect, mode: ResizeMode): ImageCrop {
+  const picture = getPictureRect(start, crop);
+  const coverScale = Math.max(frame.width / picture.width, frame.height / picture.height);
+  const frameScale = Math.max(frame.width / start.width, frame.height / start.height);
+  const scale = Math.max(coverScale, Math.min(1, frameScale));
+  const width = picture.width * scale;
+  const height = picture.height * scale;
+
+  // The picture point under the frame's fixed point stays under it.
+  const anchor = getResizeAnchor(mode);
+  const startAnchorX = start.x + anchor.x * start.width;
+  const startAnchorY = start.y + anchor.y * start.height;
+  const anchorX = frame.x + anchor.x * frame.width;
+  const anchorY = frame.y + anchor.y * frame.height;
+  const x = anchorX - ((startAnchorX - picture.x) / picture.width) * width;
+  const y = anchorY - ((startAnchorY - picture.y) / picture.height) * height;
+
+  return getCropInPicture(frame, {
+    x: clamp(x, frame.x + frame.width - width, frame.x),
+    y: clamp(y, frame.y + frame.height - height, frame.y),
+    width,
+    height,
+  });
+}
+
+/**
+ * Drags the picture's own edge or corner in crop mode: it scales keeping its shape, or stretches with Ctrl.
+ * The frame stays put, and the picture never gets smaller than it.
+ */
+export function scalePicture(
+  frame: Rect,
+  crop: ImageCrop,
+  mode: ResizeMode,
+  deltaX: number,
+  deltaY: number,
+  isStretching: boolean,
+): ImageCrop {
+  const start = getPictureRect(frame, crop);
+
+  if (isStretching) {
+    const picture = resizeRect(start, mode, deltaX, deltaY, { width: 0, height: 0 });
+    const left = Math.min(picture.x, frame.x);
+    const top = Math.min(picture.y, frame.y);
+    const right = Math.max(picture.x + picture.width, frame.x + frame.width);
+    const bottom = Math.max(picture.y + picture.height, frame.y + frame.height);
+    return getCropInPicture(frame, { x: left, y: top, width: right - left, height: bottom - top });
+  }
+
+  const wanted = resizeRectKeepingRatio(start, mode, deltaX, deltaY, { width: 0, height: 0 });
+  const anchor = getResizeAnchor(mode);
+  const anchorX = start.x + anchor.x * start.width;
+  const anchorY = start.y + anchor.y * start.height;
+
+  // The smallest scale at which the picture, growing from its fixed point, still covers the frame.
+  const minScales = [0];
+  if (anchor.x > 0) minScales.push((anchorX - frame.x) / (anchor.x * start.width));
+  if (anchor.x < 1) minScales.push((frame.x + frame.width - anchorX) / ((1 - anchor.x) * start.width));
+  if (anchor.y > 0) minScales.push((anchorY - frame.y) / (anchor.y * start.height));
+  if (anchor.y < 1) minScales.push((frame.y + frame.height - anchorY) / ((1 - anchor.y) * start.height));
+  const scale = Math.max(wanted.width / start.width, ...minScales);
+
+  const width = start.width * scale;
+  const height = start.height * scale;
+  return getCropInPicture(frame, {
+    x: anchorX - anchor.x * width,
+    y: anchorY - anchor.y * height,
+    width,
+    height,
+  });
+}
+
 /** Keeps a crop read from a board file only if it makes sense. */
 export function isValidCrop(crop: unknown): crop is ImageCrop {
   if (typeof crop !== "object" || crop === null) {

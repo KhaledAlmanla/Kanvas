@@ -13,7 +13,7 @@ The goal: safe to use for real work, nothing in the toolbar that doesn't work, a
 
 - [x] **Undo and redo** (Ctrl+Z, Ctrl+Shift+Z), so a stray Delete can't lose work.
 - [x] **No unfinished buttons.** For Export and Crop, either build it or hide it until it's ready. (Link image and Link document were dropped and removed from the toolbar. Crop is built; Export is hidden and stays on the list below.)
-- [x] ~~**Always keep the aspect ratio** when resizing images (from the [Settings Panel](Settings%20Panel.md) notes).~~ Replaced: images resize freely, Shift+drag keeps the shape, and crop mode (double-click) crops like an InDesign frame.
+- [x] ~~**Always keep the aspect ratio** when resizing images (from the [Settings Panel](Settings%20Panel.md) notes).~~ Replaced: resizing an image changes its frame and the picture fills it without stretching; Shift+drag keeps the shape, Ctrl+drag stretches, and crop mode (double-click) crops and scales the picture like an InDesign frame.
 - [ ] **Windows and macOS builds,** each tested at least once (open, save, import, settings). GitHub Actions now builds all three; they still need testing.
 - [ ] Test the 0.9 settings dialog in the running app and fix what turns up.
 - [x] **Missing images are shown,** as an "Image missing" box with the file name, instead of an empty frame. The board still saves.

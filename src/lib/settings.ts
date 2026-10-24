@@ -221,13 +221,12 @@ export function hexToRgba(hex: string, alpha: number) {
 /** CSS variables for the canvas, built from the colour scheme of the active theme. */
 export function getCanvasVariables(settings: Settings, mode: ThemeMode, showGridDots: boolean): React.CSSProperties {
   const scheme = settings.appearance.colors[mode];
-  const { accent, gridSpacing } = settings.appearance;
+  const { accent } = settings.appearance;
 
   return {
     "--canvas-bg-1": scheme.canvasStart,
     "--canvas-bg-2": scheme.canvasEnd,
     "--canvas-grid": showGridDots ? hexToRgba(scheme.gridDots, scheme.gridStrength / 100) : "transparent",
-    "--grid-spacing": `${gridSpacing}px`,
     "--panel-bg": hexToRgba(scheme.panel, 0.75),
     "--panel-solid": hexToRgba(scheme.panel, 0.96),
     "--panel-text": scheme.panelText,

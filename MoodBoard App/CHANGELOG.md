@@ -16,12 +16,19 @@ Planned work is in the [Roadmap](Roadmap.md). Detailed notes on each change are 
 - **Undo and redo** (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y), up to 100 steps. A whole drag, resize or text edit is one step.
 - **Backup on save.** Each save keeps the previous version next to the board as `MyBoard.kanvas.bak`.
 - **Paste image files copied in Windows Explorer or macOS Finder.**
-- **Crop images,** like a frame in InDesign. Double-click an image (or click Crop in its option bar): the whole picture shows faded around the frame. Drag the frame's edges to crop, and drag inside to slide the picture. Enter, Esc or a click outside finishes. Reset shows the whole picture again.
+- **Images resize like frames.** Dragging an image's edge or corner resizes its frame, and the picture fills it without stretching: dragging out first shows more of the picture, then zooms in.
+- **Crop images,** like a frame in InDesign. Double-click an image (or click Crop in its option bar): the whole picture shows faded around the frame. Drag the frame's edges to crop, drag inside to slide the picture, and drag the square handles to make the picture bigger or smaller. Enter, Esc or a click outside finishes. Reset shows the whole picture again.
 - **Shift+drag** an edge or corner to resize an image or text box, keeping its shape.
+- **Ctrl+drag** an image's edge or corner to stretch the picture, also on the square handles in crop mode. Reset in crop mode removes the stretch.
 - **F5** looks again for missing images, for example after putting a file back.
 
 ### Changed
 - **Missing images are shown** as an "Image missing" box with the file name, and the board can still be saved.
+
+### Fixed
+- **Custom canvas colours.** The gradient start and end colours in Settings now show on the board.
+- **Raising the minimum zoom** no longer makes the board jump; it zooms around the middle of the window.
+- **The dot grid zooms and pans with the board** at every zoom level, instead of sliding past the images.
 
 ### Removed
 - **Link image and Link document buttons.** These greyed-out toolbar buttons are gone. The features are dropped: import, paste or drag and drop images instead.

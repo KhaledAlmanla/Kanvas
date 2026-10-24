@@ -108,15 +108,15 @@ video {
   pointer-events: none;
 }
 
+/*
+ * Only the dots: the gradient is on .moodboard-canvas, which fills the window, so both its ends show.
+ * The canvas sets the dots' spacing, size and position from the zoom and pan, so they move with the items.
+ */
 .moodboard-grid {
   position: absolute;
-  inset: -5000px;
-  background-image:
-    radial-gradient(var(--canvas-grid) 1px, transparent 1px),
-    linear-gradient(135deg, var(--canvas-bg-1), var(--canvas-bg-2));
-  background-size: var(--grid-spacing, 18px) var(--grid-spacing, 18px), 100% 100%;
+  inset: 0;
+  background-image: radial-gradient(var(--canvas-grid) var(--grid-dot, 1px), transparent var(--grid-dot, 1px));
   pointer-events: none;
-  transform-origin: 0 0;
 }
 
 .moodboard-canvas-content {
@@ -382,6 +382,47 @@ video {
 .resize-handle--nw { top: -0.38rem; left: -0.38rem; cursor: nwse-resize; }
 .resize-handle--se { bottom: -0.38rem; right: -0.38rem; cursor: nwse-resize; }
 .resize-handle--sw { bottom: -0.38rem; left: -0.38rem; cursor: nesw-resize; }
+
+/* Crop mode: square handles on the picture's own edges, just outside them so they don't cover the frame's round ones. */
+.picture-handles {
+  position: absolute;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.picture-handle {
+  position: absolute;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 0.15rem;
+  background: var(--resize-handle-bg);
+  border: 2px solid var(--accent-strong, rgba(96, 165, 250, 0.9));
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+  pointer-events: auto;
+}
+
+.picture-handle--n,
+.picture-handle--s {
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+}
+
+.picture-handle--e,
+.picture-handle--w {
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
+.picture-handle--n { top: -1.2rem; }
+.picture-handle--s { bottom: -1.2rem; }
+.picture-handle--e { right: -1.2rem; }
+.picture-handle--w { left: -1.2rem; }
+.picture-handle--ne { top: -1.2rem; right: -1.2rem; cursor: nesw-resize; }
+.picture-handle--nw { top: -1.2rem; left: -1.2rem; cursor: nwse-resize; }
+.picture-handle--se { bottom: -1.2rem; right: -1.2rem; cursor: nwse-resize; }
+.picture-handle--sw { bottom: -1.2rem; left: -1.2rem; cursor: nesw-resize; }
 
 /* Starts right at the item's edge, so the pointer can reach the buttons without leaving the hover area. */
 .board-item-options {

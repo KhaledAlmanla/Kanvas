@@ -15,7 +15,7 @@ A desktop moodboard app: place images and text boxes on an infinite dot-grid can
 Every note in `MoodBoard App/` has a `Permission:` line in its frontmatter.
 
 - `Permission: User only. No AI`: **never edit**, by any tool. Reading is fine. Currently: `APP design.md`, `AI prompt.md`, `MoodBoard.md`.
-- `Permission: AI allowed`: you may edit. Currently: `CHANGELOG.md`, `Roadmap.md`, `AI output.md`, `Settings Panel.md`, `Codebase Guide.md`.
+- `Permission: AI allowed`: you may edit. Currently: `CHANGELOG.md`, `Roadmap.md`, `AI output.md`, `Settings Panel.md`, `Codebase Guide.md`, `Next steps.md`.
 
 Check the frontmatter of any note before editing it; new notes may appear.
 
