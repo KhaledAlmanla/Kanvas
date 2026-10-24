@@ -55,7 +55,7 @@ Earlier, on 21.10.2026: undo/redo, backup on save (`.kanvas.bak`), the "Image mi
 - [x] Colour schemes, accent colour, grid spacing, reset.
       **Dev comment:** custom gradient start and end not working;
       **AI comment (24.10.2026):** fixed. The gradient was also drawn on the dot-grid layer, which is over 10,000 px wide, so only a thin slice from its middle ever showed. Please test again.
-- [ ] Zoom limits, option bar mode, toolbar size, remember toolbar position.
+- [x] Zoom limits, option bar mode, toolbar size, remember toolbar position.
       **Dev comment:** There's a weird thing happening here: moving the  slider minimum zoom, to the right, enlarges the images.
       **AI comment (24.10.2026):** partly intended. If you're zoomed out further than the new minimum, the board zooms in to the minimum. What was wrong is that it zoomed from the top-left corner, so the board jumped. It now zooms around the middle of the window. Please test again.
       **Dev comment:** now I get it, but is still feel weird because the background not zooming in, it feelss like the images are just scaled up.
