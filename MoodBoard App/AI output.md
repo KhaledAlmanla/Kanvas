@@ -130,3 +130,8 @@ Permission: AI allowed
 - Checked the shortcut list in Settings against the key handling in `C_canvas.tsx`: it matches.
 - Updated [[Roadmap]], [[Next steps]], [[CHANGELOG]] and [[Codebase Guide]]. The large-board test and the rest of the settings test are not done yet; they need the running app.
 - The user finished the four remaining checks (large board, settings, image resizing, About); ticked them in [[Roadmap]] and [[Next steps]]. The logo source files now live in `src/assets/`.
+
+#### Changes by "Claude"_ Date[01.11.2026]_time[19:52]:
+- Release 1.0.0: version bumped in `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock`. Tag: `v1.0.0`.
+- [[CHANGELOG]]: Unreleased is now 1.0.0, dated 2026-11-01. The 0.9.0 link was removed because GitHub has no v0.9.0 tag.
+- README: downloads for Windows, Linux and macOS. macOS is marked as untested, because the user has no Mac.

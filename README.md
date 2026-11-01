@@ -29,14 +29,20 @@ All shortcuts are in Settings (Ctrl+,) under Keyboard shortcuts.
 
 ## Download
 
-**Linux (Debian, Ubuntu and similar, 64-bit):** [Kanvas_0.9.0_amd64.deb](https://github.com/KhaledAlmanla/Kanvas/releases/download/v0.9.0/Kanvas_0.9.0_amd64.deb)
+**Windows (64-bit):** [Kanvas_1.0.0_x64-setup.exe](https://github.com/KhaledAlmanla/Kanvas/releases/download/v1.0.0/Kanvas_1.0.0_x64-setup.exe)
+
+**Linux (Debian, Ubuntu and similar, 64-bit):** [Kanvas_1.0.0_amd64.deb](https://github.com/KhaledAlmanla/Kanvas/releases/download/v1.0.0/Kanvas_1.0.0_amd64.deb)
 
 ```bash
-sudo apt install ./Kanvas_0.9.0_amd64.deb   # install; Kanvas appears in your app menu under Graphics
+sudo apt install ./Kanvas_1.0.0_amd64.deb   # install; Kanvas appears in your app menu under Graphics
 sudo apt remove kanvas                      # uninstall
 ```
 
-Windows and macOS versions are planned for 1.0. See all [releases](https://github.com/KhaledAlmanla/Kanvas/releases).
+**Other Linux systems (64-bit):** [Kanvas_1.0.0_amd64.AppImage](https://github.com/KhaledAlmanla/Kanvas/releases/download/v1.0.0/Kanvas_1.0.0_amd64.AppImage)
+
+**macOS (Apple Silicon and Intel):** [Kanvas_1.0.0_universal.dmg](https://github.com/KhaledAlmanla/Kanvas/releases/download/v1.0.0/Kanvas_1.0.0_universal.dmg). This build hasn't been tested on a Mac yet, so it may have problems.
+
+See all [releases](https://github.com/KhaledAlmanla/Kanvas/releases).
 
 ### Opening Kanvas for the first time on Windows or macOS
 
@@ -51,7 +57,7 @@ Kanvas is free and isn't signed with a paid developer certificate, so Windows an
 
 ## Status
 
-**Current: 0.9.0 (beta).** **Next: 1.0:** Windows and macOS builds, and testing on all three systems.
+**Current: 1.0.0.** **Next:** see the Roadmap below.
 
 - [Changelog](MoodBoard%20App/CHANGELOG.md): what changed in each version
 - [Roadmap](MoodBoard%20App/Roadmap.md): what's planned

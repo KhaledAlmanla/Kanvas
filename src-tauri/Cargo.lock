@@ -3899,7 +3899,7 @@ dependencies = [
 
 [[package]]
 name = "the-moodboard"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "arboard",
  "png 0.17.16",

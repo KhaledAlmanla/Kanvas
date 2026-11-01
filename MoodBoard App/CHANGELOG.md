@@ -9,6 +9,10 @@ Planned work is in the [Roadmap](Roadmap.md). Detailed notes on each change are 
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-01
+
+First stable release.
+
 ### Added
 - **Copy, cut and paste** (Ctrl+C, Ctrl+X, Ctrl+V). Selected images and text boxes are pasted at the mouse pointer with their layout kept, also into another board.
 - **Paste images from other apps.** Ctrl+V adds a copied image, such as a screenshot or an image copied in a browser, or image files copied in the file manager.
@@ -35,7 +39,7 @@ Planned work is in the [Roadmap](Roadmap.md). Detailed notes on each change are 
 - **Link image and Link document buttons.** These greyed-out toolbar buttons are gone. The features are dropped: import, paste or drag and drop images instead.
 - **Export button** is hidden until it works.
 
-## [0.9.0] - 2026-10-16
+## 0.9.0 - 2026-10-16
 
 First beta.
 
@@ -78,5 +82,5 @@ First prototype.
 - Floating toolbar that can be dragged, or moved to the pointer with a right-click.
 - Dark and light theme.
 
-[Unreleased]: https://github.com/KhaledAlmanla/Kanvas/compare/v0.9.0...HEAD
-[0.9.0]: https://github.com/KhaledAlmanla/Kanvas/releases/tag/v0.9.0
+[Unreleased]: https://github.com/KhaledAlmanla/Kanvas/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/KhaledAlmanla/Kanvas/releases/tag/v1.0.0
