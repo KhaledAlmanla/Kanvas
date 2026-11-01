@@ -68,7 +68,7 @@ flowchart LR
 │   ├── Cargo.toml                Rust dependencies (like package.json, for Rust)
 │   ├── tauri.conf.json           App name, window size, security, packaging
 │   ├── capabilities/default.json Permissions: what the frontend may ask for
-│   └── icons/                    App icons for each platform
+│   └── icons/                    App icons for each platform; regenerate with `npx tauri icon public/kanvas.svg`, then delete the android/ and ios/ folders it adds
 │
 ├── index.html                    The single web page the frontend lives in
 ├── package.json                  Frontend dependencies + npm commands

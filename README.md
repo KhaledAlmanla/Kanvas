@@ -1,3 +1,5 @@
+<img src="public/kanvas.svg" alt="Kanvas logo" width="96">
+
 # Kanvas
 
 **A free, simple mood board app for your desktop.** Collect images and notes on an endless canvas, arrange them freely, and keep every board as a plain folder on your own computer. No account, no cloud.
@@ -5,7 +7,7 @@
 ![A living-room mood board in Kanvas: a colour palette, furniture and decor images and two notes arranged on the dark dot-grid canvas, with the floating toolbar at the top](Screenshots/v0.9.0_Linux_01.png)
 
 > [!NOTE]
-> **Kanvas is a vibe-coded app.** It was designed, directed and tested by a person. The code was written by AI coding assistants (GitHub Copilot, then Claude). It's free to download and use. It's a beta, so expect some rough edges.
+> **Kanvas is a vibe-coded app.** It was designed, directed and tested by a person. The code was written by AI coding assistants (GitHub Copilot, then Claude). It's free to download and use. Expect some rough edges.
 
 ## What you can do
 
@@ -15,6 +17,15 @@
 - Save each board as a folder: a `.kanvas` file plus copies of its images, so nothing breaks if the originals move. Each save keeps the previous one as a backup.
 - Pick a dark, light or system theme, and customise colours, the grid, the toolbar and text defaults.
 - Reopen recent boards from the toolbar.
+
+## Getting started
+
+1. Open Kanvas and drop a few images onto the board, paste them with Ctrl+V, or use the import button in the toolbar.
+2. Drag items to arrange them. Drag an edge or corner to resize, and double-click an image to crop it.
+3. Scroll to zoom and hold the middle mouse button to pan. Right-click the canvas to bring the toolbar to the pointer.
+4. Press Ctrl+S and name your board. It's saved as a folder you can move or share.
+
+All shortcuts are in Settings (Ctrl+,) under Keyboard shortcuts.
 
 ## Download
 

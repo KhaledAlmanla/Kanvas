@@ -121,3 +121,12 @@ Permission: AI allowed
 #### Changes by "Claude"_ Date[24.10.2026]_time[15:34]:
 - **Fixed: the dot grid didn't zoom with the board.** It was a 10,000 px layer (`.moodboard-grid`) scaled around its own top-left corner, 5,000 px off-screen, so the dots slid relative to the images, and at low zoom the layer could be smaller than the window. The grid now fills the window, and `C_canvas.tsx` sets its spacing (grid spacing × zoom), dot size (`--grid-dot`) and position (the pan) on every view change, so the dots stay locked to the items at any zoom. The unused `--grid-spacing` variable was removed from `settings.ts`.
 - The user's follow-up comment on the minimum-zoom test in [[Next steps]] is answered there. The colour gradient deliberately stays still.
+
+#### Changes by "Claude"_ Date[01.11.2026]_time[19:40]:
+- App icon: all files in `src-tauri/icons/` are now made from the user's logo (`Logo_v.1.0.svg`). That SVG clips with a `<use>` pointing at a group, which only Inkscape draws: other renderers lost the black background and the shine. `public/kanvas.svg` is a copy with that one clip fixed; the design is unchanged and the user's two logo files were not edited.
+- `index.html` uses `public/kanvas.svg` as its icon. The template files `public/vite.svg` and `public/tauri.svg` are deleted.
+- File format frozen at version 4. Layer order needs no new field, because items are drawn in list order and the list is saved in that order. Noted in `src/lib/boardFile.ts`.
+- README: logo at the top, a short "Getting started", and the beta wording removed. Screenshots for each system are still open: only the Linux 0.9 one exists.
+- Checked the shortcut list in Settings against the key handling in `C_canvas.tsx`: it matches.
+- Updated [[Roadmap]], [[Next steps]], [[CHANGELOG]] and [[Codebase Guide]]. The large-board test and the rest of the settings test are not done yet; they need the running app.
+- The user finished the four remaining checks (large board, settings, image resizing, About); ticked them in [[Roadmap]] and [[Next steps]]. The logo source files now live in `src/assets/`.

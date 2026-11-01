@@ -43,7 +43,8 @@ type BoardFile = {
 };
 
 /**
- * Version 4 added `crop` to images; older images have none.
+ * Version 4 added `crop` to images; older images have none. This is the format frozen for 1.0: only add
+ * optional fields from here on, so every board made with 1.0 keeps opening. Layer order is the order of `items`.
  * Version 1 kept images and text boxes in separate lists, with numeric ids.
  * Versions 1 and 2 also stored a theme; it is dropped on load so old boards follow the app theme.
  */

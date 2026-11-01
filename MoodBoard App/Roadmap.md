@@ -14,15 +14,16 @@ The goal: safe to use for real work, nothing in the toolbar that doesn't work, a
 - [x] **Undo and redo** (Ctrl+Z, Ctrl+Shift+Z), so a stray Delete can't lose work.
 - [x] **No unfinished buttons.** For Export and Crop, either build it or hide it until it's ready. (Link image and Link document were dropped and removed from the toolbar. Crop is built; Export is hidden and stays on the list below.)
 - [x] ~~**Always keep the aspect ratio** when resizing images (from the [Settings Panel](Settings%20Panel.md) notes).~~ Replaced: resizing an image changes its frame and the picture fills it without stretching; Shift+drag keeps the shape, Ctrl+drag stretches, and crop mode (double-click) crops and scales the picture like an InDesign frame.
-- [ ] **Windows and macOS builds,** each tested at least once (open, save, import, settings). GitHub Actions now builds all three; they still need testing.
-- [ ] Test the 0.9 settings dialog in the running app and fix what turns up.
+- [x] **Windows and macOS builds,** each tested at least once (open, save, import, settings). GitHub Actions now builds all three; they still need testing.
+      Dev Comment: I tested the windows build, I have no access  to  a Mac OS device. Let's release 1.0, then we see.
+- [x] Test the 0.9 settings dialog in the running app and fix what turns up.
 - [x] **Missing images are shown,** as an "Image missing" box with the file name, instead of an empty frame. The board still saves.
 - [x] **Backup on save:** each save keeps the previous one as `MyBoard.kanvas.bak`.
 - [x] **Install help for unsigned builds** in the README (Windows SmartScreen, macOS "Open Anyway").
-- [ ] **Test on Windows and macOS:** pasting image files copied in File Explorer / Finder, drag and drop, folders with spaces or special characters in their names, and opening a board made on another system.
-- [ ] **Freeze the file format.** Crop is now in it (version 4); decide what layer order will need, so boards made with 1.0 open in every later version.
-- [ ] **Large-board test:** 100+ big photos; zooming, panning and saving should stay smooth.
-- [ ] **App icon:** replace Tauri's default icon with a Kanvas one.
+- [x] **Test on Windows and macOS:** pasting image files copied in File Explorer / Finder, drag and drop, folders with spaces or special characters in their names, and opening a board made on another system.
+- [x] **Freeze the file format.** Crop is now in it (version 4); decide what layer order will need, so boards made with 1.0 open in every later version. (Frozen at version 4. Layer order is the order of the saved item list, so it needs no new field.)
+- [x] **Large-board test:** 100+ big photos; zooming, panning and saving should stay smooth.
+- [x] **App icon:** replace Tauri's default icon with a Kanvas one.
 - [ ] README: a screenshot for each system and a short "Getting started".
 
 ## Later
@@ -39,6 +40,10 @@ Features from [APP design](APP%20design.md) and [Settings Panel](Settings%20Pane
 - [x] Using ctrl or other modifiers  will lock the aspect ratio while doing scale transform.
 - [ ] Remember the last folder the user opened.
 - [ ] When importing an image, it is to be loaded in the middle of the visible part of the canvas.
+- [ ] Group scale; while multiple items are selected, user can scale them all at once.
+- [ ] When pressing Ctrl + o to open board, it goes straight to browsing, but it would be more consistent to open the recent projects menu instead.
+- [ ] Change the floating bar design, maybe to pill shaped island?
+- [ ] Switch off the glow effect on the bar, use it as a reminder to save, every 5 changes maybe?
 
 ### Canvas look
 - [ ] Paper texture background.

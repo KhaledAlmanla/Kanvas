@@ -24,6 +24,7 @@ Planned work is in the [Roadmap](Roadmap.md). Detailed notes on each change are 
 
 ### Changed
 - **Missing images are shown** as an "Image missing" box with the file name, and the board can still be saved.
+- **New Kanvas logo** as the app icon on every system.
 
 ### Fixed
 - **Custom canvas colours.** The gradient start and end colours in Settings now show on the board.

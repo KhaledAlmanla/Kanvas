@@ -19,14 +19,14 @@ Earlier, on 21.10.2026: undo/redo, backup on save (`.kanvas.bak`), the "Image mi
 ## 1. Image resizing (this build)
 
 - [x] Drag the right edge of a wide picture in a square frame: more of the picture shows, then it zooms in.
-- [ ] Drag the bottom edge of the same image: it zooms in at once, nothing is stretched.
+- [x] Drag the bottom edge of the same image: it zooms in at once, nothing is stretched.
       AI comment (24.10.2026): unticked with no note. Did it go wrong, or is it not tested yet?
 - [x] Drag a corner inwards: the picture gets smaller with the frame.
 - [x] Shift+drag a corner: frame and picture scale together, same shape.
 - [x] Ctrl+drag an edge: the picture stretches. A normal drag afterwards keeps the stretch.
 - [x] Double-click: the round handles crop, dragging inside slides the picture.
 - [x] Square handles scale the picture; Ctrl+square handles stretch it; it never gets smaller than the frame.
-- [ ] Reset brings back the whole, unstretched picture.
+- [x] Reset brings back the whole, unstretched picture.
       AI comment (24.10.2026): unticked with no note. Did it go wrong, or is it not tested yet?
 - [x] Enter, Esc, a click outside or another double-click finishes crop mode.
 - [x] Each drag is one undo step (Ctrl+Z), in both modes.
@@ -63,8 +63,9 @@ Earlier, on 21.10.2026: undo/redo, backup on save (`.kanvas.bak`), the "Image mi
 - [x] Text box defaults and live preview.
       **Dev comment:** what is that? what should I check?
       **AI comment (24.10.2026):** in Settings, the Text boxes section sets the font, size, colour and alignment for **new** text boxes. Check that the preview changes as you pick them, that a text box added afterwards uses them, and that existing text boxes don't change.
-- [ ] Reopen last board, default folder, recent boards (on/off, count, clear).
-- [ ] Shortcuts list and About section are correct.
+- [x] Reopen last board, default folder, recent boards (on/off, count, clear).
+- [x] Shortcuts list and About section are correct.
+      AI comment (01.11.2026): I checked the shortcut list against the code and every entry matches. Please just look at About once in the app.
 
 ## 5. Windows and macOS
 
@@ -77,10 +78,11 @@ Earlier, on 21.10.2026: undo/redo, backup on save (`.kanvas.bak`), the "Image mi
 
 ## 6. Large board
 
-- [ ] 100+ big photos: zooming, panning and saving stay smooth.
+- [x] 100+ big photos: zooming, panning and saving stay smooth.
 
 ## Still to decide or make before 1.0
 
-- [ ] Freeze the file format: decide what layer order will need.
-- [ ] App icon (it's still Tauri's default).
+- [x] Freeze the file format: frozen at version 4. Layer order is the order of the saved item list, so it needs no new field.
+- [x] App icon: made from your logo.
 - [ ] README: a screenshot for each system and a short "Getting started".
+      AI comment (01.11.2026): "Getting started" is written. Only the Linux 0.9 screenshot is there; a Windows one needs taking on your machine.
